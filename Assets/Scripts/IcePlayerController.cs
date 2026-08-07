@@ -5,7 +5,7 @@ namespace IceEscape
 {
     public enum ControlMode
     {
-        MouseFlickSlap, // "Şaplak Hissi" - Quick mouse flicks apply sharp side sliding impulses
+        MouseFlickSlap, // "Şaplak Hissi" - Hold click + swipe left/right to trigger side slap impulses
         ScreenDrag,     // Click & Drag anywhere on screen
         CursorPosition, // Follows Mouse Cursor X position
         ButtonHold      // Left/Right Click hold
@@ -16,21 +16,33 @@ namespace IceEscape
     {
         [Header("Control Settings")]
         [SerializeField] private ControlMode controlMode = ControlMode.MouseFlickSlap;
-        [SerializeField] private float moveForce = 40f;
-        [SerializeField] private float maxSpeed = 20f;
-        [SerializeField] private float torqueForce = 6f;
-        [SerializeField] private float jumpForce = 8.5f;
+        [SerializeField] private float moveForce = 25f;
+        [SerializeField] private float maxSpeed = 12f;
+        [SerializeField] private float torqueForce = 4f;
+        [SerializeField] private float jumpForce = 6.5f;
 
-        [Header("Şaplak / Flick Impulse Settings")]
+        [Header("Cehennemde Erime Sistemi (Ice Melting)")]
+        [SerializeField] private bool enableMelting = true;
+        [SerializeField] private float meltRatePerSecond = 0.015f; // Erime hızı (~65 saniyede erir)
+        [SerializeField] private float minMeltScaleRatio = 0.2f;   // En küçük kalma boyutu
+        [SerializeField] private Vector3 initialVisualScale = new Vector3(0.85f, 0.85f, 0.85f);
+        [Range(0f, 1f)] private float currentMeltPercent = 1.0f;    // 1.0 = %100 buz, 0.0 = tamamen eridi
+
+        [Header("Şaplak / Flick Impulse Settings (Click + Drag)")]
         [SerializeField] private bool enableMouseFlick = true;
-        [SerializeField] private float flickThreshold = 8f;        // Minimum mouse delta speed to trigger slap
-        [SerializeField] private float flickImpulseForce = 14f;    // Sharp side force on slap
-        [SerializeField] private float maxVisualTiltAngle = 30f;   // Visual roll tilt angle when slapped
+        [SerializeField] private float flickThreshold = 10f;
+        [SerializeField] private float flickImpulseForce = 5f;
+        [SerializeField] private float flickCooldown = 0.2f;
+        [SerializeField] private float maxVisualTiltAngle = 25f;
         [SerializeField] private float tiltDamping = 8f;
+
+        [Header("Ground Clamping (Anti-Fly)")]
+        [SerializeField] private float groundStickyForce = 25f;
+        [SerializeField] private float maxVerticalVelocity = 8f;
 
         [Header("Auto Slide Settings")]
         [SerializeField] private bool autoForward = true;
-        [SerializeField] private float autoForwardForce = 1.0f;
+        [SerializeField] private float autoForwardForce = 0.6f;
 
         [Header("Ground Check & Alignment")]
         [SerializeField] private float sphereCastRadius = 0.4f;
@@ -52,8 +64,11 @@ namespace IceEscape
 
         private float currentTiltRoll = 0f;
         private float targetTiltRoll = 0f;
+        private float lastFlickTime = -1f;
         private Vector2 dragStartPos;
         private bool isDragging;
+
+        public float CurrentMeltPercent => currentMeltPercent;
 
         private void Awake()
         {
@@ -73,14 +88,19 @@ namespace IceEscape
                 cameraTransform = Camera.main.transform;
             }
 
-            if (visualTransform != null && unparentVisualOnStart)
+            if (visualTransform != null)
             {
-                visualTransform.SetParent(null);
+                initialVisualScale = visualTransform.localScale;
+                if (unparentVisualOnStart)
+                {
+                    visualTransform.SetParent(null);
+                }
             }
         }
 
         private void Update()
         {
+            HandleMelting();
             HandleDragInputState();
             DetectMouseFlickSlap();
 
@@ -93,6 +113,7 @@ namespace IceEscape
         private void FixedUpdate()
         {
             HandleMovement();
+            ApplyGroundStickyForceAndClamp();
         }
 
         private void LateUpdate()
@@ -107,6 +128,35 @@ namespace IceEscape
             {
                 Destroy(visualTransform.gameObject);
             }
+        }
+
+        private void HandleMelting()
+        {
+            if (!enableMelting) return;
+
+            if (currentMeltPercent > 0f)
+            {
+                currentMeltPercent -= meltRatePerSecond * Time.deltaTime;
+                currentMeltPercent = Mathf.Clamp01(currentMeltPercent);
+
+                // Eridikçe görsel buz boyutunu küçült
+                if (visualTransform != null)
+                {
+                    float scaleFactor = Mathf.Lerp(minMeltScaleRatio, 1.0f, currentMeltPercent);
+                    visualTransform.localScale = initialVisualScale * scaleFactor;
+                }
+
+                // Eridikçe buz hafifler
+                if (rb != null)
+                {
+                    rb.mass = Mathf.Lerp(0.3f, 1.0f, currentMeltPercent);
+                }
+            }
+        }
+
+        public void RestoreIce(float amount)
+        {
+            currentMeltPercent = Mathf.Clamp01(currentMeltPercent + amount);
         }
 
         private void HandleDragInputState()
@@ -129,12 +179,20 @@ namespace IceEscape
         {
             if (!enableMouseFlick || Mouse.current == null) return;
 
+            bool isMousePressed = Mouse.current.leftButton.isPressed;
+            if (!isMousePressed)
+            {
+                targetTiltRoll = Mathf.MoveTowards(targetTiltRoll, 0f, Time.deltaTime * maxVisualTiltAngle * 2.5f);
+                currentTiltRoll = Mathf.Lerp(currentTiltRoll, targetTiltRoll, Time.deltaTime * tiltDamping);
+                return;
+            }
+
             Vector2 mouseDelta = Mouse.current.delta.ReadValue();
             float deltaX = mouseDelta.x;
 
-            // Detect quick mouse swipe / flick (Şaplak hissi!)
-            if (Mathf.Abs(deltaX) >= flickThreshold)
+            if (Mathf.Abs(deltaX) >= flickThreshold && (Time.time - lastFlickTime) >= flickCooldown)
             {
+                lastFlickTime = Time.time;
                 float flickDir = Mathf.Sign(deltaX);
 
                 Vector3 camRight = Vector3.right;
@@ -145,16 +203,31 @@ namespace IceEscape
                     camRight.Normalize();
                 }
 
-                // Apply sharp instantaneous impulse force sideways
                 rb.AddForce(camRight * flickDir * flickImpulseForce, ForceMode.Impulse);
-
-                // Set visual tilt roll angle
                 targetTiltRoll = -flickDir * maxVisualTiltAngle;
             }
 
-            // Smoothly damp tilt roll angle back to zero
             targetTiltRoll = Mathf.MoveTowards(targetTiltRoll, 0f, Time.deltaTime * maxVisualTiltAngle * 2.5f);
             currentTiltRoll = Mathf.Lerp(currentTiltRoll, targetTiltRoll, Time.deltaTime * tiltDamping);
+        }
+
+        private void ApplyGroundStickyForceAndClamp()
+        {
+            if (isGrounded)
+            {
+                rb.AddForce(-smoothedNormal * groundStickyForce, ForceMode.Force);
+            }
+            else
+            {
+                rb.AddForce(Vector3.down * 15f, ForceMode.Force);
+            }
+
+            Vector3 vel = rb.linearVelocity;
+            if (vel.y > maxVerticalVelocity)
+            {
+                vel.y = maxVerticalVelocity;
+                rb.linearVelocity = vel;
+            }
         }
 
         private bool GetJumpInput()
@@ -172,7 +245,6 @@ namespace IceEscape
         {
             Vector2 input = Vector2.zero;
 
-            // 1. Keyboard Input (WASD / Arrow Keys)
             if (Keyboard.current != null)
             {
                 if (Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed) input.y += 1f;
@@ -181,25 +253,23 @@ namespace IceEscape
                 if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed) input.x += 1f;
             }
 
-            // 2. Gamepad Input
             if (Gamepad.current != null)
             {
                 Vector2 stick = Gamepad.current.leftStick.ReadValue();
                 if (stick.sqrMagnitude > 0.05f) input += stick;
             }
 
-            // 3. Mouse Steering & Flick Input
             if (Mouse.current != null)
             {
                 Vector2 delta = Mouse.current.delta.ReadValue();
+                bool isPressed = Mouse.current.leftButton.isPressed;
 
                 switch (controlMode)
                 {
                     case ControlMode.MouseFlickSlap:
-                        // Continuous smooth mouse delta + flick impulses
-                        if (Mathf.Abs(delta.x) > 0.05f)
+                        if (isPressed && Mathf.Abs(delta.x) > 0.05f)
                         {
-                            input.x += delta.x * 0.15f;
+                            input.x += delta.x * 0.1f;
                         }
                         break;
 
@@ -208,11 +278,11 @@ namespace IceEscape
                         {
                             Vector2 currentMousePos = Mouse.current.position.ReadValue();
                             float screenDeltaX = (currentMousePos.x - dragStartPos.x) / Screen.width;
-                            input.x += screenDeltaX * 3.5f;
+                            input.x += screenDeltaX * 2.5f;
                         }
                         else if (Mathf.Abs(delta.x) > 0.05f)
                         {
-                            input.x += delta.x * 0.1f;
+                            input.x += delta.x * 0.08f;
                         }
                         break;
 
@@ -229,7 +299,6 @@ namespace IceEscape
                 }
             }
 
-            // Auto-forward slide down the escape track
             if (autoForward && input.y >= 0f)
             {
                 input.y = Mathf.Max(input.y, autoForwardForce);
@@ -282,10 +351,7 @@ namespace IceEscape
                 forwardOnPlane = Vector3.ProjectOnPlane(Vector3.forward, smoothedNormal).normalized;
             }
 
-            // Base ground slope rotation
             Quaternion slopeRotation = Quaternion.LookRotation(forwardOnPlane, smoothedNormal);
-
-            // Add dynamic "Şaplak" tilt roll angle into the turn
             Quaternion tiltRotation = Quaternion.AngleAxis(currentTiltRoll, forwardOnPlane);
 
             visualTransform.rotation = Quaternion.Slerp(visualTransform.rotation, tiltRotation * slopeRotation, Time.deltaTime * alignSpeed);
