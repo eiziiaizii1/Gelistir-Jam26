@@ -107,6 +107,15 @@ public class IceSlideController : MonoBehaviour
     /// <summary>Downhill heading projected onto the current surface. The camera follows this.</summary>
     public Vector3 SlideDirection { get; private set; } = Vector3.forward;
 
+    /// <summary>Cross-slope axis, pointing to the block's right when facing downhill.</summary>
+    public Vector3 SlopeRight { get; private set; } = Vector3.right;
+
+    /// <summary>Raised when a lateral impulse lands, carrying the world-space impulse applied.</summary>
+    public event System.Action<Vector3> Slapped;
+
+    /// <summary>Raised on touchdown, carrying the speed the block hit the surface with.</summary>
+    public event System.Action<float> Landed;
+
     public float Speed => body != null ? body.linearVelocity.magnitude : 0f;
     public bool IsGrounded => grounded;
 
@@ -272,7 +281,15 @@ public class IceSlideController : MonoBehaviour
             return;
         }
 
+        // Captured before ProbeGround so a landing can report the speed it arrived with,
+        // not the post-collision speed.
+        bool wasGrounded = grounded;
+        float approachSpeed = -Vector3.Dot(body.linearVelocity, groundNormal);
+
         ProbeGround();
+
+        if (grounded && !wasGrounded && Landed != null)
+            Landed(Mathf.Max(0f, approachSpeed));
 
         if (grounded)
             coyoteTimer = coyoteTime;
@@ -294,6 +311,7 @@ public class IceSlideController : MonoBehaviour
         // stopped meaning left/right.
         Vector3 slopeForward = SlideDirection;
         Vector3 slopeRight = Vector3.Cross(groundNormal, slopeForward).normalized;
+        SlopeRight = slopeRight;
 
         float control = grounded ? 1f : airControlMultiplier;
 
@@ -301,8 +319,12 @@ public class IceSlideController : MonoBehaviour
         {
             // Cross-slope only. Perpendicular to downhill by construction, so a slap
             // can never add or remove speed along the slope.
-            body.AddForce(slopeRight * (pendingSlap * slapImpulse * control), ForceMode.Impulse);
+            Vector3 impulse = slopeRight * (pendingSlap * slapImpulse * control);
+            body.AddForce(impulse, ForceMode.Impulse);
             pendingSlap = 0f;
+
+            if (Slapped != null)
+                Slapped(impulse);
         }
 
         if (dashQueued)
