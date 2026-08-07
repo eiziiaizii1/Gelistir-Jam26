@@ -13,9 +13,9 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(SphereCollider))]
 public class IceSlideController : MonoBehaviour
 {
-    [Header("Lateral slap (mouse X, inverted)")]
-    [Tooltip("Impulse from one slap. Dragging RIGHT hits the block's right side and " +
-             "shoves it LEFT, and vice versa.")]
+    [Header("Lateral slap (mouse X)")]
+    [Tooltip("Impulse from one slap. The block follows the drag: dragging RIGHT pushes " +
+             "it RIGHT, dragging LEFT pushes it LEFT.")]
     [SerializeField] private float slapImpulse = 5f;
     [Tooltip("Mouse pixels of horizontal travel in a frame before a slap registers.")]
     [SerializeField] private float slapThreshold = 4f;
@@ -168,10 +168,9 @@ public class IceSlideController : MonoBehaviour
         {
             if (slapTimer <= 0f)
             {
-                // Inverted: a drag to the right is a hit on the right side, so the
-                // block is knocked to the left.
+                // Direct: the block follows the drag. Right drag pushes it right.
                 float strength = Mathf.Min(horizontal / slapThreshold, maxSlapScale);
-                pendingSlap = -Mathf.Sign(delta.x) * strength;
+                pendingSlap = Mathf.Sign(delta.x) * strength;
                 slapTimer = slapCooldown;
             }
         }
