@@ -3,25 +3,43 @@ using UnityEngine.InputSystem;
 
 /// <summary>
 /// Physics-driven downhill slide. Gravity supplies the forward motion; the mouse only
-/// steers (X) and dashes (Y). The rigidbody is a frictionless sphere, the visible cube
-/// is a child that gets oriented and banked to sell the "sliding block of ice" look.
+/// slaps the block sideways (X) and dashes it forward (Y), both as instantaneous
+/// impulses so momentum carries on the ice.
+///
+/// The two mouse axes are strictly isolated: a single frame of mouse movement resolves
+/// to a slap OR a dash, never both, so side-to-side correction can never fire the dash.
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(SphereCollider))]
 public class IceSlideController : MonoBehaviour
 {
-    [Header("Steering (mouse X)")]
-    [SerializeField] private float steerForce = 30f;
-    [SerializeField] private float mouseSensitivity = 0.12f;
-    [SerializeField] private float steerSmoothing = 12f;
+    [Header("Lateral slap (mouse X, inverted)")]
+    [Tooltip("Impulse from one slap. Dragging RIGHT hits the block's right side and " +
+             "shoves it LEFT, and vice versa.")]
+    [SerializeField] private float slapImpulse = 5f;
+    [Tooltip("Mouse pixels of horizontal travel in a frame before a slap registers.")]
+    [SerializeField] private float slapThreshold = 4f;
+    [Tooltip("Minimum seconds between slaps, so a fast drag reads as hits, not a push.")]
+    [SerializeField] private float slapCooldown = 0.08f;
+    [Tooltip("Hardest slap allowed, as a multiple of slapImpulse.")]
+    [SerializeField] private float maxSlapScale = 2.5f;
 
-    [Header("Dash (mouse forward / Y)")]
-    [SerializeField] private float dashImpulse = 12f;
-    [SerializeField] private float dashThreshold = 5f;
+    [Header("Forward dash (mouse Y)")]
+    [SerializeField] private float dashImpulse = 10f;
+    [SerializeField] private float dashThreshold = 6f;
     [SerializeField] private float dashCooldown = 0.6f;
+
+    [Header("Input isolation")]
+    [Tooltip("One axis must beat the other by this factor to claim the frame. Higher " +
+             "means diagonal mouse movement is ignored instead of picking a winner.")]
+    [SerializeField] private float axisDominance = 1.5f;
 
     [Header("Slide")]
     [SerializeField] private float maxSpeed = 40f;
+    [Tooltip("How fast sideways drift bleeds off, per second. Downhill speed is never " +
+             "damped. 0 = pure ice, drift persists until something stops it.")]
+    [SerializeField] private float lateralDamping = 1.2f;
+    [Tooltip("Impulse scale while airborne.")]
     [SerializeField] private float airControlMultiplier = 0.25f;
     [SerializeField] private LayerMask groundMask = ~0;
 
@@ -32,14 +50,14 @@ public class IceSlideController : MonoBehaviour
 
     [Header("Visual")]
     [SerializeField] private Transform visual;
-    [SerializeField] private float bankAngle = 18f;
-    [SerializeField] private float visualTurnSpeed = 8f;
+    [Tooltip("How fast the cube yaws to face downhill. It never pitches or rolls.")]
+    [SerializeField] private float visualTurnSpeed = 6f;
 
     private Rigidbody body;
     private SphereCollider sphere;
 
-    private float steerInput;
-    private float smoothedSteer;
+    private float pendingSlap;
+    private float slapTimer;
     private float dashTimer;
     private bool dashQueued;
 
@@ -59,8 +77,9 @@ public class IceSlideController : MonoBehaviour
         body = GetComponent<Rigidbody>();
         sphere = GetComponent<SphereCollider>();
 
-        // Rolling would tumble the ice block; drive orientation from the visual instead.
-        body.freezeRotation = true;
+        // The sphere must never spin: rolling would fight the impulses and make the
+        // cube snap around. All orientation is driven by the visual child instead.
+        body.constraints = RigidbodyConstraints.FreezeRotation;
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
@@ -68,6 +87,9 @@ public class IceSlideController : MonoBehaviour
             visual = transform.GetChild(0);
 
         startPosition = transform.position;
+
+        if (visual != null)
+            visual.rotation = UprightRotation();
     }
 
     /// <summary>Return to the start of the slope with all momentum cleared.</summary>
@@ -76,20 +98,26 @@ public class IceSlideController : MonoBehaviour
         body.linearVelocity = Vector3.zero;
         body.angularVelocity = Vector3.zero;
         transform.position = startPosition;
+        transform.rotation = Quaternion.identity;
 
-        smoothedSteer = 0f;
-        steerInput = 0f;
+        pendingSlap = 0f;
+        slapTimer = 0f;
         dashQueued = false;
         dashTimer = 0f;
+
+        if (visual != null)
+            visual.rotation = UprightRotation();
     }
 
     private void Update()
     {
-        ReadMouse();
+        if (slapTimer > 0f)
+            slapTimer -= Time.deltaTime;
 
         if (dashTimer > 0f)
             dashTimer -= Time.deltaTime;
 
+        ReadMouse();
         UpdateVisual();
     }
 
@@ -100,14 +128,32 @@ public class IceSlideController : MonoBehaviour
             return;
 
         Vector2 delta = mouse.delta.ReadValue();
+        float horizontal = Mathf.Abs(delta.x);
+        float forward = delta.y;
 
-        steerInput = Mathf.Clamp(delta.x * mouseSensitivity, -1f, 1f);
+        // Exactly one branch can run per frame. Horizontal movement resolves to a slap
+        // and nothing else; forward movement resolves to a dash and nothing else.
+        bool horizontalWins = horizontal >= slapThreshold && horizontal > Mathf.Abs(forward) * axisDominance;
+        bool forwardWins = forward >= dashThreshold && forward > horizontal * axisDominance;
 
-        // Pushing the mouse forward (up the desk) fires a burst of speed.
-        if (delta.y >= dashThreshold && dashTimer <= 0f)
+        if (horizontalWins)
         {
-            dashQueued = true;
-            dashTimer = dashCooldown;
+            if (slapTimer <= 0f)
+            {
+                // Inverted: a drag to the right is a hit on the right side, so the
+                // block is knocked to the left.
+                float strength = Mathf.Min(horizontal / slapThreshold, maxSlapScale);
+                pendingSlap = -Mathf.Sign(delta.x) * strength;
+                slapTimer = slapCooldown;
+            }
+        }
+        else if (forwardWins)
+        {
+            if (dashTimer <= 0f)
+            {
+                dashQueued = true;
+                dashTimer = dashCooldown;
+            }
         }
     }
 
@@ -122,31 +168,36 @@ public class IceSlideController : MonoBehaviour
         ProbeGround();
 
         // Downhill = gravity flattened against the surface. On a flat patch or mid-air,
-        // keep the last heading so steering and the camera stay stable.
+        // keep the last heading so the slap axis and the camera stay stable.
         Vector3 downhill = Vector3.ProjectOnPlane(Physics.gravity, groundNormal);
         if (downhill.sqrMagnitude > 0.0001f)
             SlideDirection = downhill.normalized;
 
-        Vector3 planarVelocity = Vector3.ProjectOnPlane(body.linearVelocity, groundNormal);
-        Vector3 heading = planarVelocity.sqrMagnitude > 1f ? planarVelocity.normalized : SlideDirection;
-        Vector3 lateral = Vector3.Cross(groundNormal, heading).normalized;
-
-        smoothedSteer = Mathf.Lerp(smoothedSteer, steerInput, steerSmoothing * Time.fixedDeltaTime);
+        // Both axes are anchored to the SLOPE, never to current velocity. Deriving them
+        // from velocity meant that once the block drifted sideways the "lateral" axis
+        // rotated to point up the hill, so a slap could shove it uphill and left/right
+        // stopped meaning left/right.
+        Vector3 slopeForward = SlideDirection;
+        Vector3 slopeRight = Vector3.Cross(groundNormal, slopeForward).normalized;
 
         float control = grounded ? 1f : airControlMultiplier;
-        body.AddForce(-lateral * (smoothedSteer * steerForce * control), ForceMode.Acceleration);
+
+        if (!Mathf.Approximately(pendingSlap, 0f))
+        {
+            // Cross-slope only. Perpendicular to downhill by construction, so a slap
+            // can never add or remove speed along the slope.
+            body.AddForce(slopeRight * (pendingSlap * slapImpulse * control), ForceMode.Impulse);
+            pendingSlap = 0f;
+        }
 
         if (dashQueued)
         {
             dashQueued = false;
-            body.AddForce(heading * dashImpulse, ForceMode.VelocityChange);
+            body.AddForce(slopeForward * (dashImpulse * control), ForceMode.Impulse);
         }
 
+        DampLateralDrift(slopeRight);
         ClampSpeed();
-
-        // Mouse delta is per-frame; without this the last value would repeat when the
-        // mouse stops moving.
-        steerInput = 0f;
     }
 
     private void ProbeGround()
@@ -166,6 +217,21 @@ public class IceSlideController : MonoBehaviour
         groundNormal = grounded ? hit.normal : Vector3.up;
     }
 
+    /// <summary>
+    /// Bleeds off sideways drift only. Downhill momentum is untouched, so the ice feel
+    /// survives — this just stops every slap accumulating forever on a frictionless
+    /// surface until the block parks against a rail. Set lateralDamping to 0 to disable.
+    /// </summary>
+    private void DampLateralDrift(Vector3 slopeRight)
+    {
+        if (!grounded || lateralDamping <= 0f)
+            return;
+
+        float sideways = Vector3.Dot(body.linearVelocity, slopeRight);
+        float decayed = sideways * Mathf.Exp(-lateralDamping * Time.fixedDeltaTime);
+        body.linearVelocity += slopeRight * (decayed - sideways);
+    }
+
     private void ClampSpeed()
     {
         Vector3 velocity = body.linearVelocity;
@@ -181,13 +247,24 @@ public class IceSlideController : MonoBehaviour
         if (visual == null)
             return;
 
-        Vector3 planarVelocity = Vector3.ProjectOnPlane(body.linearVelocity, groundNormal);
-        Vector3 forward = planarVelocity.sqrMagnitude > 1f ? planarVelocity.normalized : SlideDirection;
+        // Yaw only. Deriving this from SlideDirection rather than velocity keeps it
+        // steady: velocity flips direction near zero and would snap the cube around.
+        visual.rotation = Quaternion.Slerp(
+            visual.rotation,
+            UprightRotation(),
+            visualTurnSpeed * Time.deltaTime);
+    }
 
-        Quaternion target = Quaternion.LookRotation(forward, groundNormal)
-                            * Quaternion.Euler(0f, 0f, -smoothedSteer * bankAngle);
+    /// <summary>Level with the world, facing downhill. No pitch, no roll, ever.</summary>
+    private Quaternion UprightRotation()
+    {
+        Vector3 flat = SlideDirection;
+        flat.y = 0f;
 
-        visual.rotation = Quaternion.Slerp(visual.rotation, target, visualTurnSpeed * Time.deltaTime);
+        if (flat.sqrMagnitude < 0.0001f)
+            return visual != null ? visual.rotation : Quaternion.identity;
+
+        return Quaternion.LookRotation(flat.normalized, Vector3.up);
     }
 
     private static float MaxAbsScale(Vector3 scale)
