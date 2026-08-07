@@ -16,7 +16,7 @@ public class IceSlideController : MonoBehaviour
     [Header("Lateral slap (mouse X)")]
     [Tooltip("Impulse from one slap. The block follows the drag: dragging RIGHT pushes " +
              "it RIGHT, dragging LEFT pushes it LEFT.")]
-    [SerializeField] private float slapImpulse = 5f;
+    [SerializeField] private float slapImpulse = 8f;
     [Tooltip("Mouse speed in pixels/second before a slap registers. Slower than this " +
              "is treated as aiming, not swinging.")]
     [SerializeField] private float slapSpeedThreshold = 250f;
@@ -36,6 +36,24 @@ public class IceSlideController : MonoBehaviour
     [SerializeField] private float dashSpeedThreshold = 700f;
     [SerializeField] private float dashCooldown = 0.6f;
 
+    [Header("Jump (right mouse button)")]
+    [SerializeField] private float jumpImpulse = 10f;
+    [Tooltip("Gravity multiplier while rising. Above 1 shortens the float at the top of " +
+             "the arc, which is what stops a jump feeling floaty.")]
+    [SerializeField] private float riseGravityMultiplier = 2.2f;
+    [Tooltip("Gravity multiplier while falling. Higher than the rise value gives the " +
+             "snappy 'up slow, down fast' arc games use; real gravity is symmetric and " +
+             "reads as sluggish.")]
+    [SerializeField] private float fallGravityMultiplier = 3.4f;
+    [Tooltip("Releasing the right button while still rising cuts upward speed to this " +
+             "fraction, so a quick click is a short hop and a held click is a full jump.")]
+    [SerializeField] private float jumpCutMultiplier = 0.5f;
+    [Tooltip("Grace period after leaving the ground where a jump still counts. Stops " +
+             "jumps being eaten when the block skips over a bump.")]
+    [SerializeField] private float coyoteTime = 0.12f;
+    [Tooltip("How early a click can land before touchdown and still fire on landing.")]
+    [SerializeField] private float jumpBuffer = 0.12f;
+
     [Header("Input gate")]
     [Tooltip("Mouse steering only responds while the left mouse button is held down. " +
              "Uncheck to have the mouse always live.")]
@@ -51,8 +69,10 @@ public class IceSlideController : MonoBehaviour
     [Tooltip("How fast sideways drift bleeds off, per second. Downhill speed is never " +
              "damped. 0 = pure ice, drift persists until something stops it.")]
     [SerializeField] private float lateralDamping = 1.2f;
-    [Tooltip("Impulse scale while airborne.")]
-    [SerializeField] private float airControlMultiplier = 0.25f;
+    [Tooltip("Impulse scale while airborne. Near 1 so a slap mid-jump lands with real " +
+             "weight: air slaps are the point of jumping, and nothing damps drift while " +
+             "off the ground, so a mid-air hit carries the whole arc.")]
+    [SerializeField] private float airControlMultiplier = 0.85f;
     [SerializeField] private LayerMask groundMask = ~0;
 
     [Header("Respawn")]
@@ -74,6 +94,10 @@ public class IceSlideController : MonoBehaviour
     private float swingSign;
     private float dashTimer;
     private bool dashQueued;
+
+    private float coyoteTimer;
+    private float jumpBufferTimer;
+    private bool jumpCutQueued;
 
     private bool grounded;
     private Vector3 groundNormal = Vector3.up;
@@ -120,6 +144,9 @@ public class IceSlideController : MonoBehaviour
         dashQueued = false;
         dashTimer = 0f;
         wasHeld = false;
+        jumpBufferTimer = 0f;
+        coyoteTimer = 0f;
+        jumpCutQueued = false;
 
         if (visual != null)
             visual.rotation = UprightRotation();
@@ -130,8 +157,27 @@ public class IceSlideController : MonoBehaviour
         if (dashTimer > 0f)
             dashTimer -= Time.deltaTime;
 
+        if (jumpBufferTimer > 0f)
+            jumpBufferTimer -= Time.deltaTime;
+
+        // Read before ReadMouse, and separately from it: ReadMouse bails out when the
+        // left button is up, so jumping must not live behind that gate.
+        ReadJump();
         ReadMouse();
         UpdateVisual();
+    }
+
+    private void ReadJump()
+    {
+        Mouse mouse = Mouse.current;
+        if (mouse == null)
+            return;
+
+        if (mouse.rightButton.wasPressedThisFrame)
+            jumpBufferTimer = jumpBuffer;
+
+        if (mouse.rightButton.wasReleasedThisFrame)
+            jumpCutQueued = true;
     }
 
     private void ReadMouse()
@@ -228,6 +274,14 @@ public class IceSlideController : MonoBehaviour
 
         ProbeGround();
 
+        if (grounded)
+            coyoteTimer = coyoteTime;
+        else if (coyoteTimer > 0f)
+            coyoteTimer -= Time.fixedDeltaTime;
+
+        TryJump();
+        ApplyJumpGravity();
+
         // Downhill = gravity flattened against the surface. On a flat patch or mid-air,
         // keep the last heading so the slap axis and the camera stay stable.
         Vector3 downhill = Vector3.ProjectOnPlane(Physics.gravity, groundNormal);
@@ -259,6 +313,61 @@ public class IceSlideController : MonoBehaviour
 
         DampLateralDrift(slopeRight);
         ClampSpeed();
+    }
+
+    /// <summary>
+    /// Extra gravity, airborne only. Kept off the ground on purpose: the downhill slide
+    /// is gravity-driven, so multiplying gravity while grounded would speed up the whole
+    /// run as a side effect of retuning the jump.
+    /// </summary>
+    private void ApplyJumpGravity()
+    {
+        if (grounded)
+        {
+            jumpCutQueued = false;
+            return;
+        }
+
+        float vertical = Vector3.Dot(body.linearVelocity, Vector3.up);
+
+        if (jumpCutQueued)
+        {
+            jumpCutQueued = false;
+
+            // Only cuts a rising jump. Releasing the button on the way down must not
+            // yank the block toward the ground.
+            if (vertical > 0f)
+            {
+                body.linearVelocity -= Vector3.up * (vertical * (1f - jumpCutMultiplier));
+                vertical *= jumpCutMultiplier;
+            }
+        }
+
+        float multiplier = vertical > 0f ? riseGravityMultiplier : fallGravityMultiplier;
+        body.AddForce(Physics.gravity * (multiplier - 1f), ForceMode.Acceleration);
+    }
+
+    private void TryJump()
+    {
+        if (jumpBufferTimer <= 0f || coyoteTimer <= 0f)
+            return;
+
+        jumpBufferTimer = 0f;
+        coyoteTimer = 0f;
+
+        // Leave along the surface normal, not world up. What decides whether the block
+        // separates from the ground is the velocity component along the normal, and a
+        // world-up jump only contributes cos(slope) of itself to that: identical at 0
+        // degrees, but 9% weaker at 25 and 29% weaker at 45. Using the normal keeps jump
+        // strength constant however steep the hill gets.
+        Vector3 normal = grounded ? groundNormal : Vector3.up;
+
+        // Cancel only motion into the surface, so along-surface momentum is untouched.
+        float into = Vector3.Dot(body.linearVelocity, normal);
+        if (into < 0f)
+            body.linearVelocity -= normal * into;
+
+        body.AddForce(normal * jumpImpulse, ForceMode.Impulse);
     }
 
     private void ProbeGround()

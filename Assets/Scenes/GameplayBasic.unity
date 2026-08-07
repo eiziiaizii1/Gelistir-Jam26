@@ -379,7 +379,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6db081d553a8e9d439addc25aa061168, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  slapImpulse: 5
+  slapImpulse: 8
   slapSpeedThreshold: 250
   slapSpeedReference: 900
   slapReleaseSpeed: 90
@@ -387,11 +387,17 @@ MonoBehaviour:
   dashImpulse: 10
   dashSpeedThreshold: 700
   dashCooldown: 0.6
+  jumpImpulse: 10
+  riseGravityMultiplier: 2.2
+  fallGravityMultiplier: 3.4
+  jumpCutMultiplier: 0.5
+  coyoteTime: 0.12
+  jumpBuffer: 0.12
   requireMouseHold: 1
   axisDominance: 1.5
   maxSpeed: 40
   lateralDamping: 1.2
-  airControlMultiplier: 0.25
+  airControlMultiplier: 0.85
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
