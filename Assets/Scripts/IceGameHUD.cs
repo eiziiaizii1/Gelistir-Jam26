@@ -19,8 +19,14 @@ namespace IceEscape
         private Text gameOverText;
 
         [Header("Target Tracking")]
-        [SerializeField] private IcePlayerController playerController;
+        [Tooltip("Optional. Leave empty and the HUD finds the player itself, so this " +
+                 "works with any movement controller, not just IcePlayerController.")]
         [SerializeField] private Rigidbody playerRigidbody;
+        [Tooltip("Optional. Anything implementing IMeltSource. If nothing provides melt " +
+                 "data, the melt bar hides and speed/distance still work.")]
+        [SerializeField] private MonoBehaviour meltSourceBehaviour;
+
+        private IMeltSource meltSource;
 
         private Vector3 startPosition;
         private float flashAlpha = 0f;
@@ -43,21 +49,48 @@ namespace IceEscape
 
         private void FindPlayerReferences()
         {
-            if (playerController == null)
+            // Melt data is optional: it can come from IcePlayerController, from the
+            // standalone IceMelt component, or from nothing at all.
+            if (meltSource == null)
             {
-                playerController = FindFirstObjectByType<IcePlayerController>();
+                if (meltSourceBehaviour is IMeltSource fromInspector)
+                {
+                    meltSource = fromInspector;
+                }
+                else
+                {
+                    foreach (MonoBehaviour behaviour in FindObjectsByType<MonoBehaviour>(
+                                 FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                    {
+                        if (behaviour is IMeltSource found)
+                        {
+                            meltSource = found;
+                            break;
+                        }
+                    }
+                }
             }
 
-            if (playerController != null && playerRigidbody == null)
+            if (playerRigidbody == null && meltSource is MonoBehaviour meltOwner)
             {
-                playerRigidbody = playerController.GetComponent<Rigidbody>();
-                startPosition = playerRigidbody.position;
+                playerRigidbody = meltOwner.GetComponent<Rigidbody>();
             }
+
+            // Last resort so the readouts work even with no melt system in the scene.
+            if (playerRigidbody == null)
+            {
+                GameObject tagged = GameObject.FindGameObjectWithTag("Player");
+                if (tagged != null)
+                    playerRigidbody = tagged.GetComponent<Rigidbody>();
+            }
+
+            if (playerRigidbody != null && startPosition == Vector3.zero)
+                startPosition = playerRigidbody.position;
         }
 
         private void Update()
         {
-            if (playerController == null)
+            if (playerRigidbody == null || meltSource == null)
             {
                 FindPlayerReferences();
             }
@@ -73,9 +106,9 @@ namespace IceEscape
             }
 
             // Update Melt Meter Bar & Text
-            if (playerController != null && meltBarFill != null && meltText != null)
+            if (meltSource != null && meltBarFill != null && meltText != null)
             {
-                float meltRatio = playerController.CurrentMeltPercent;
+                float meltRatio = meltSource.CurrentMeltPercent;
                 meltBarFill.fillAmount = Mathf.Lerp(meltBarFill.fillAmount, meltRatio, Time.deltaTime * 8f);
 
                 int percentInt = Mathf.RoundToInt(meltRatio * 100f);

@@ -15,10 +15,22 @@ namespace IceEscape
 
         private void Start()
         {
-            IcePlayerController player = FindFirstObjectByType<IcePlayerController>();
-            if (player != null)
+            // Prefer the body this trail is attached under, so the trail works on any
+            // character rather than only on IcePlayerController.
+            parentRb = GetComponentInParent<Rigidbody>();
+
+            if (parentRb == null)
             {
-                parentRb = player.GetComponent<Rigidbody>();
+                IcePlayerController player = FindFirstObjectByType<IcePlayerController>();
+                if (player != null)
+                    parentRb = player.GetComponent<Rigidbody>();
+            }
+
+            if (parentRb == null)
+            {
+                GameObject tagged = GameObject.FindGameObjectWithTag("Player");
+                if (tagged != null)
+                    parentRb = tagged.GetComponent<Rigidbody>();
             }
 
             SetupTrailMaterial();
