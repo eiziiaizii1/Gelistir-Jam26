@@ -17,16 +17,23 @@ public class IceSlideController : MonoBehaviour
     [Tooltip("Impulse from one slap. The block follows the drag: dragging RIGHT pushes " +
              "it RIGHT, dragging LEFT pushes it LEFT.")]
     [SerializeField] private float slapImpulse = 5f;
-    [Tooltip("Mouse pixels of horizontal travel in a frame before a slap registers.")]
-    [SerializeField] private float slapThreshold = 4f;
-    [Tooltip("Minimum seconds between slaps, so a fast drag reads as hits, not a push.")]
-    [SerializeField] private float slapCooldown = 0.08f;
+    [Tooltip("Mouse speed in pixels/second before a slap registers. Slower than this " +
+             "is treated as aiming, not swinging.")]
+    [SerializeField] private float slapSpeedThreshold = 250f;
+    [Tooltip("Mouse speed in pixels/second that produces a full-strength (1.0) slap. " +
+             "Lower makes the block more sensitive to gentle swipes.")]
+    [SerializeField] private float slapSpeedReference = 900f;
+    [Tooltip("Drop below this mouse speed (pixels/second) to end the swing and arm the " +
+             "next slap. Keep it well under slapSpeedThreshold so a steady drag can't " +
+             "flicker in and out and machine-gun impulses.")]
+    [SerializeField] private float slapReleaseSpeed = 90f;
     [Tooltip("Hardest slap allowed, as a multiple of slapImpulse.")]
     [SerializeField] private float maxSlapScale = 2.5f;
 
     [Header("Forward dash (mouse Y)")]
     [SerializeField] private float dashImpulse = 10f;
-    [SerializeField] private float dashThreshold = 6f;
+    [Tooltip("Forward mouse speed in pixels/second before a dash fires.")]
+    [SerializeField] private float dashSpeedThreshold = 700f;
     [SerializeField] private float dashCooldown = 0.6f;
 
     [Header("Input gate")]
@@ -63,7 +70,8 @@ public class IceSlideController : MonoBehaviour
 
     private bool wasHeld;
     private float pendingSlap;
-    private float slapTimer;
+    private bool swingActive;
+    private float swingSign;
     private float dashTimer;
     private bool dashQueued;
 
@@ -107,7 +115,8 @@ public class IceSlideController : MonoBehaviour
         transform.rotation = Quaternion.identity;
 
         pendingSlap = 0f;
-        slapTimer = 0f;
+        swingActive = false;
+        swingSign = 0f;
         dashQueued = false;
         dashTimer = 0f;
         wasHeld = false;
@@ -118,9 +127,6 @@ public class IceSlideController : MonoBehaviour
 
     private void Update()
     {
-        if (slapTimer > 0f)
-            slapTimer -= Time.deltaTime;
-
         if (dashTimer > 0f)
             dashTimer -= Time.deltaTime;
 
@@ -141,6 +147,8 @@ public class IceSlideController : MonoBehaviour
             // Drop anything queued but not yet applied, so releasing the button can't
             // leave one last impulse to fire on the next physics step.
             pendingSlap = 0f;
+            swingActive = false;
+            swingSign = 0f;
             dashQueued = false;
             wasHeld = false;
             return;
@@ -156,22 +164,38 @@ public class IceSlideController : MonoBehaviour
             return;
         }
 
-        float horizontal = Mathf.Abs(delta.x);
-        float forward = delta.y;
+        // Work in pixels/second, not pixels/frame. Raw delta scales with frame time, so
+        // the same hand movement would hit softer at high framerates.
+        float dt = Mathf.Max(Time.deltaTime, 0.0001f);
+        float speedX = delta.x / dt;
+        float speedY = delta.y / dt;
+
+        float horizontal = Mathf.Abs(speedX);
+        float forward = speedY;
 
         // Exactly one branch can run per frame. Horizontal movement resolves to a slap
         // and nothing else; forward movement resolves to a dash and nothing else.
-        bool horizontalWins = horizontal >= slapThreshold && horizontal > Mathf.Abs(forward) * axisDominance;
-        bool forwardWins = forward >= dashThreshold && forward > horizontal * axisDominance;
+        bool horizontalWins = horizontal >= slapSpeedThreshold && horizontal > Mathf.Abs(forward) * axisDominance;
+        bool forwardWins = forward >= dashSpeedThreshold && forward > horizontal * axisDominance;
 
         if (horizontalWins)
         {
-            if (slapTimer <= 0f)
+            // ONE impulse per swing. Holding the button and dragging does not push the
+            // block continuously: the gate below stays shut for the rest of the gesture,
+            // so a long drag is a single slap, not a stream of them. Firing every frame
+            // (or on a short cooldown) integrates into smooth velocity and reads as the
+            // block following the cursor, which is exactly what we don't want.
+            bool reversed = swingSign != 0f && Mathf.Sign(speedX) != swingSign;
+
+            if (!swingActive || reversed)
             {
-                // Direct: the block follows the drag. Right drag pushes it right.
-                float strength = Mathf.Min(horizontal / slapThreshold, maxSlapScale);
-                pendingSlap = Mathf.Sign(delta.x) * strength;
-                slapTimer = slapCooldown;
+                // Strength comes from how fast the hand was moving when the swing began.
+                // The block follows the drag: a right swipe knocks it right.
+                float strength = Mathf.Min(horizontal / slapSpeedReference, maxSlapScale);
+                pendingSlap = Mathf.Sign(speedX) * strength;
+
+                swingActive = true;
+                swingSign = Mathf.Sign(speedX);
             }
         }
         else if (forwardWins)
@@ -181,6 +205,16 @@ public class IceSlideController : MonoBehaviour
                 dashQueued = true;
                 dashTimer = dashCooldown;
             }
+        }
+
+        // Deliberately outside the branch chain above: folding this in as another
+        // "else if" would swallow the dash branch on any frame with little sideways
+        // movement, which is exactly when a forward push happens.
+        if (horizontal < slapReleaseSpeed)
+        {
+            // Hand has slowed to a stop. The gesture is over, so the next one can land.
+            swingActive = false;
+            swingSign = 0f;
         }
     }
 

@@ -380,11 +380,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   slapImpulse: 5
-  slapThreshold: 4
-  slapCooldown: 0.08
+  slapSpeedThreshold: 250
+  slapSpeedReference: 900
+  slapReleaseSpeed: 90
   maxSlapScale: 2.5
   dashImpulse: 10
-  dashThreshold: 6
+  dashSpeedThreshold: 700
   dashCooldown: 0.6
   requireMouseHold: 1
   axisDominance: 1.5
