@@ -386,6 +386,7 @@ MonoBehaviour:
   dashImpulse: 10
   dashThreshold: 6
   dashCooldown: 0.6
+  requireMouseHold: 1
   axisDominance: 1.5
   maxSpeed: 40
   lateralDamping: 1.2

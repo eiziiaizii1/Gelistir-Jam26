@@ -29,6 +29,11 @@ public class IceSlideController : MonoBehaviour
     [SerializeField] private float dashThreshold = 6f;
     [SerializeField] private float dashCooldown = 0.6f;
 
+    [Header("Input gate")]
+    [Tooltip("Mouse steering only responds while the left mouse button is held down. " +
+             "Uncheck to have the mouse always live.")]
+    [SerializeField] private bool requireMouseHold = true;
+
     [Header("Input isolation")]
     [Tooltip("One axis must beat the other by this factor to claim the frame. Higher " +
              "means diagonal mouse movement is ignored instead of picking a winner.")]
@@ -56,6 +61,7 @@ public class IceSlideController : MonoBehaviour
     private Rigidbody body;
     private SphereCollider sphere;
 
+    private bool wasHeld;
     private float pendingSlap;
     private float slapTimer;
     private float dashTimer;
@@ -104,6 +110,7 @@ public class IceSlideController : MonoBehaviour
         slapTimer = 0f;
         dashQueued = false;
         dashTimer = 0f;
+        wasHeld = false;
 
         if (visual != null)
             visual.rotation = UprightRotation();
@@ -127,7 +134,28 @@ public class IceSlideController : MonoBehaviour
         if (mouse == null)
             return;
 
+        bool held = !requireMouseHold || mouse.leftButton.isPressed;
+
+        if (!held)
+        {
+            // Drop anything queued but not yet applied, so releasing the button can't
+            // leave one last impulse to fire on the next physics step.
+            pendingSlap = 0f;
+            dashQueued = false;
+            wasHeld = false;
+            return;
+        }
+
         Vector2 delta = mouse.delta.ReadValue();
+
+        // Movement made before the click shouldn't count as a swing. Skip the press
+        // frame so grabbing the mouse and then clicking doesn't fire a stray slap.
+        if (!wasHeld)
+        {
+            wasHeld = true;
+            return;
+        }
+
         float horizontal = Mathf.Abs(delta.x);
         float forward = delta.y;
 
