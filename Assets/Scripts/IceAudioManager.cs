@@ -1,0 +1,191 @@
+using UnityEngine;
+
+namespace IceEscape
+{
+    public class IceAudioManager : MonoBehaviour
+    {
+        private static IceAudioManager instance;
+        public static IceAudioManager Instance => instance;
+
+        [Header("Audio Sources")]
+        private AudioSource slideAudioSource;
+        private AudioSource sfxAudioSource;
+
+        [Header("Procedural Audio Clips")]
+        private AudioClip crystalChimeClip;
+        private AudioClip explosionClip;
+        private AudioClip slapWhooshClip;
+        private AudioClip slideNoiseClip;
+
+        private Rigidbody playerRb;
+
+        private void Awake()
+        {
+            if (instance != null && instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+            instance = this;
+
+            SetupAudioSources();
+            GenerateProceduralAudioClips();
+        }
+
+        private void Start()
+        {
+            IcePlayerController player = FindFirstObjectByType<IcePlayerController>();
+            if (player != null)
+            {
+                playerRb = player.GetComponent<Rigidbody>();
+            }
+        }
+
+        private void SetupAudioSources()
+        {
+            slideAudioSource = gameObject.AddComponent<AudioSource>();
+            slideAudioSource.loop = true;
+            slideAudioSource.playOnAwake = false;
+            slideAudioSource.volume = 0.25f;
+
+            sfxAudioSource = gameObject.AddComponent<AudioSource>();
+            sfxAudioSource.loop = false;
+            sfxAudioSource.playOnAwake = false;
+            sfxAudioSource.volume = 0.8f;
+        }
+
+        private void GenerateProceduralAudioClips()
+        {
+            crystalChimeClip = CreateChimeClip();
+            explosionClip = CreateExplosionClip();
+            slapWhooshClip = CreateWhooshClip();
+            slideNoiseClip = CreateSlideNoiseClip();
+
+            if (slideAudioSource != null && slideNoiseClip != null)
+            {
+                slideAudioSource.clip = slideNoiseClip;
+                slideAudioSource.Play();
+            }
+        }
+
+        private void Update()
+        {
+            if (slideAudioSource != null && playerRb != null)
+            {
+                float speed = playerRb.linearVelocity.magnitude;
+                slideAudioSource.volume = Mathf.Clamp(speed / 15f, 0.05f, 0.4f);
+                slideAudioSource.pitch = Mathf.Clamp(0.8f + (speed / 20f), 0.8f, 1.8f);
+            }
+        }
+
+        public void PlayCrystalChime()
+        {
+            if (sfxAudioSource != null && crystalChimeClip != null)
+            {
+                sfxAudioSource.PlayOneShot(crystalChimeClip, 0.7f);
+            }
+        }
+
+        public void PlayExplosion()
+        {
+            if (sfxAudioSource != null && explosionClip != null)
+            {
+                sfxAudioSource.PlayOneShot(explosionClip, 0.9f);
+            }
+        }
+
+        public void PlaySlapWhoosh()
+        {
+            if (sfxAudioSource != null && slapWhooshClip != null)
+            {
+                sfxAudioSource.PlayOneShot(slapWhooshClip, 0.6f);
+            }
+        }
+
+        private AudioClip CreateChimeClip()
+        {
+            int sampleRate = 44100;
+            float duration = 0.35f;
+            int samples = (int)(sampleRate * duration);
+            float[] data = new float[samples];
+
+            for (int i = 0; i < samples; i++)
+            {
+                float t = (float)i / sampleRate;
+                float freq1 = 880f; // A5
+                float freq2 = 1320f; // E6
+                float env = Mathf.Exp(-t * 12f);
+                data[i] = (Mathf.Sin(2 * Mathf.PI * freq1 * t) + Mathf.Sin(2 * Mathf.PI * freq2 * t) * 0.5f) * env * 0.5f;
+            }
+
+            AudioClip clip = AudioClip.Create("CrystalChime", samples, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip CreateExplosionClip()
+        {
+            int sampleRate = 44100;
+            float duration = 0.5f;
+            int samples = (int)(sampleRate * duration);
+            float[] data = new float[samples];
+
+            System.Random rand = new System.Random();
+            for (int i = 0; i < samples; i++)
+            {
+                float t = (float)i / sampleRate;
+                float env = Mathf.Exp(-t * 6f);
+                float noise = (float)(rand.NextDouble() * 2.0 - 1.0);
+                float subFreq = Mathf.Sin(2 * Mathf.PI * 65f * t);
+                data[i] = (noise * 0.7f + subFreq * 0.5f) * env * 0.6f;
+            }
+
+            AudioClip clip = AudioClip.Create("ExplosionBoom", samples, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip CreateWhooshClip()
+        {
+            int sampleRate = 44100;
+            float duration = 0.25f;
+            int samples = (int)(sampleRate * duration);
+            float[] data = new float[samples];
+
+            System.Random rand = new System.Random();
+            for (int i = 0; i < samples; i++)
+            {
+                float t = (float)i / sampleRate;
+                float env = Mathf.Sin(t / duration * Mathf.PI);
+                float noise = (float)(rand.NextDouble() * 2.0 - 1.0);
+                data[i] = noise * env * 0.4f;
+            }
+
+            AudioClip clip = AudioClip.Create("SlapWhoosh", samples, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip CreateSlideNoiseClip()
+        {
+            int sampleRate = 44100;
+            float duration = 2.0f;
+            int samples = (int)(sampleRate * duration);
+            float[] data = new float[samples];
+
+            System.Random rand = new System.Random();
+            float lastVal = 0f;
+            for (int i = 0; i < samples; i++)
+            {
+                float noise = (float)(rand.NextDouble() * 2.0 - 1.0);
+                // Low-pass filter for smooth sliding hiss
+                lastVal = Mathf.Lerp(lastVal, noise, 0.15f);
+                data[i] = lastVal * 0.2f;
+            }
+
+            AudioClip clip = AudioClip.Create("SlideNoise", samples, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+    }
+}

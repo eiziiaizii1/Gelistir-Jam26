@@ -12,26 +12,26 @@ namespace IceEscape
     }
 
     [RequireComponent(typeof(Rigidbody))]
-    public class IcePlayerController : MonoBehaviour, IMeltSource
+    public class IcePlayerController : MonoBehaviour
     {
         [Header("Control Settings")]
         [SerializeField] private ControlMode controlMode = ControlMode.MouseFlickSlap;
-        [SerializeField] private float moveForce = 25f;
-        [SerializeField] private float maxSpeed = 12f;
-        [SerializeField] private float torqueForce = 4f;
-        [SerializeField] private float jumpForce = 6.5f;
+        [SerializeField] private float moveForce = 35f;
+        [SerializeField] private float maxSpeed = 16f;
+        [SerializeField] private float torqueForce = 5f;
+        [SerializeField] private float jumpForce = 7.5f;
 
         [Header("Cehennemde Erime Sistemi (Ice Melting)")]
         [SerializeField] private bool enableMelting = true;
-        [SerializeField] private float meltRatePerSecond = 0.015f; // Erime hızı (~65 saniyede erir)
-        [SerializeField] private float minMeltScaleRatio = 0.2f;   // En küçük kalma boyutu
+        [SerializeField] private float meltRatePerSecond = 0.015f;
+        [SerializeField] private float minMeltScaleRatio = 0.2f;
         [SerializeField] private Vector3 initialVisualScale = new Vector3(0.85f, 0.85f, 0.85f);
-        [Range(0f, 1f)] private float currentMeltPercent = 1.0f;    // 1.0 = %100 buz, 0.0 = tamamen eridi
+        [Range(0f, 1f)] private float currentMeltPercent = 1.0f;
 
         [Header("Şaplak / Flick Impulse Settings (Click + Drag)")]
         [SerializeField] private bool enableMouseFlick = true;
         [SerializeField] private float flickThreshold = 10f;
-        [SerializeField] private float flickImpulseForce = 5f;
+        [SerializeField] private float flickImpulseForce = 5.5f;
         [SerializeField] private float flickCooldown = 0.2f;
         [SerializeField] private float maxVisualTiltAngle = 25f;
         [SerializeField] private float tiltDamping = 8f;
@@ -42,7 +42,7 @@ namespace IceEscape
 
         [Header("Auto Slide Settings")]
         [SerializeField] private bool autoForward = true;
-        [SerializeField] private float autoForwardForce = 0.6f;
+        [SerializeField] private float autoForwardForce = 0.8f;
 
         [Header("Ground Check & Alignment")]
         [SerializeField] private float sphereCastRadius = 0.4f;
@@ -139,14 +139,12 @@ namespace IceEscape
                 currentMeltPercent -= meltRatePerSecond * Time.deltaTime;
                 currentMeltPercent = Mathf.Clamp01(currentMeltPercent);
 
-                // Eridikçe görsel buz boyutunu küçült
                 if (visualTransform != null)
                 {
                     float scaleFactor = Mathf.Lerp(minMeltScaleRatio, 1.0f, currentMeltPercent);
                     visualTransform.localScale = initialVisualScale * scaleFactor;
                 }
 
-                // Eridikçe buz hafifler
                 if (rb != null)
                 {
                     rb.mass = Mathf.Lerp(0.3f, 1.0f, currentMeltPercent);
@@ -205,6 +203,12 @@ namespace IceEscape
 
                 rb.AddForce(camRight * flickDir * flickImpulseForce, ForceMode.Impulse);
                 targetTiltRoll = -flickDir * maxVisualTiltAngle;
+
+                // Play Slap Whoosh Sound
+                if (IceAudioManager.Instance != null)
+                {
+                    IceAudioManager.Instance.PlaySlapWhoosh();
+                }
             }
 
             targetTiltRoll = Mathf.MoveTowards(targetTiltRoll, 0f, Time.deltaTime * maxVisualTiltAngle * 2.5f);
