@@ -52,11 +52,12 @@ public class IceSlideController : MonoBehaviour
     [SerializeField] private float jumpImpulse = 10f;
     [Tooltip("Gravity multiplier while rising. Above 1 shortens the float at the top of " +
              "the arc, which is what stops a jump feeling floaty.")]
-    [SerializeField] private float riseGravityMultiplier = 2.2f;
-    [Tooltip("Gravity multiplier while falling. Higher than the rise value gives the " +
-             "snappy 'up slow, down fast' arc games use; real gravity is symmetric and " +
-             "reads as sluggish.")]
-    [SerializeField] private float fallGravityMultiplier = 3.4f;
+    [SerializeField] private float riseGravityMultiplier = 1.7f;
+    [Tooltip("Gravity multiplier while falling. Still above the rise value for the 'up slow, " +
+             "down fast' arc, but no longer so steep that the block arrives at the slope far " +
+             "steeper than the slope itself descends — that mismatch is what read as being " +
+             "yanked into the ground.")]
+    [SerializeField] private float fallGravityMultiplier = 2f;
     [Tooltip("Releasing the right button while still rising cuts upward speed to this " +
              "fraction, so a quick click is a short hop and a held click is a full jump.")]
     [SerializeField] private float jumpCutMultiplier = 0.5f;
@@ -103,6 +104,28 @@ public class IceSlideController : MonoBehaviour
              "off the ground, so a mid-air hit carries the whole arc.")]
     [SerializeField] private float airControlMultiplier = 0.85f;
     [SerializeField] private LayerMask groundMask = ~0;
+
+    [Header("Airborne")]
+    [Tooltip("Terminal downward speed while airborne. A safety net for long drops, so no " +
+             "flight can build up a descent the landing has to violently undo.")]
+    [SerializeField] private float maxFallSpeed = 22f;
+    [Tooltip("Share of the into-slope speed the cushion sheds before touchdown. 1 = arrive " +
+             "almost parallel to the surface.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float landingSmoothing = 0.85f;
+    [Tooltip("Share of the shed speed handed back as along-slope momentum, so a landing flows " +
+             "into the slide rather than just deleting energy.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float landingSpeedRecovery = 0.5f;
+    [Tooltip("Height above the surface where the landing cushion starts working. This is what " +
+             "makes the landing smooth rather than merely early: the descent is bled off " +
+             "gradually across this distance instead of being cancelled in one step, which is " +
+             "just as jarring as the collision doing it. Taller = softer and floatier.")]
+    [SerializeField] private float landingCushionHeight = 2.5f;
+    [Tooltip("Ceiling on cushion deceleration, m/s². Caps how hard the cushion can push back " +
+             "in a single step, so a very fast drop still lands firmly instead of hitting an " +
+             "invisible wall.")]
+    [SerializeField] private float maxCushionAcceleration = 80f;
 
     [Header("Obstacle impacts")]
     [Tooltip("After a hit, descent is held at or above that hit's floor for this long. " +
@@ -240,6 +263,38 @@ public class IceSlideController : MonoBehaviour
         float descent = Vector3.Dot(body.linearVelocity, forwardAxis);
         if (descent < impactFloorSpeed)
             body.linearVelocity += forwardAxis * (impactFloorSpeed - descent);
+    }
+
+    /// <summary>
+    /// Turns descent into a short hop off a ramp. Horizontal momentum is kept, so the block
+    /// carries its run through the air instead of stalling at the lip.
+    ///
+    /// Nothing here zeroes velocity: the vertical component is only ever raised. If the block
+    /// is already travelling upward — which it is, after physically riding up the ramp face —
+    /// that speed is kept and the boost adds to it, rather than replacing it and stealing lift
+    /// the ramp had already earned.
+    ///
+    /// Gravity does the rest. slideAcceleration is grounded-only and the airborne gravity
+    /// multiplier is already tuned, so the arc falls off naturally with no extra bookkeeping.
+    /// </summary>
+    /// <param name="redirectEfficiency">Share of downward speed converted to upward.</param>
+    /// <param name="extraUpSpeed">Flat upward speed added on top, m/s.</param>
+    /// <param name="horizontalRetention">Multiplier on horizontal velocity. 1 keeps all of it.</param>
+    public void LaunchFromRamp(float redirectEfficiency, float extraUpSpeed, float horizontalRetention)
+    {
+        Vector3 velocity = body.linearVelocity;
+
+        float falling = Mathf.Max(0f, -velocity.y);
+        float rising = Mathf.Max(0f, velocity.y);
+
+        float up = rising + falling * Mathf.Clamp01(redirectEfficiency) + Mathf.Max(0f, extraUpSpeed);
+
+        Vector3 horizontal = new Vector3(velocity.x, 0f, velocity.z) * Mathf.Clamp(horizontalRetention, 0f, 1f);
+        body.linearVelocity = horizontal + Vector3.up * up;
+
+        // A ramp is not an obstacle recovery. Leaving the impact floor armed would keep
+        // forcing descent along the slope while the block is meant to be flying.
+        impactFloorTimer = 0f;
     }
 
     /// <summary>Return to the start of the slope with all momentum cleared.</summary>
@@ -428,7 +483,17 @@ public class IceSlideController : MonoBehaviour
         // keep the last heading so the slap axis and the camera stay stable.
         Vector3 downhill = Vector3.ProjectOnPlane(Physics.gravity, groundNormal);
         if (downhill.sqrMagnitude > 0.0001f)
-            SlideDirection = downhill.normalized;
+        {
+            Vector3 candidate = downhill.normalized;
+
+            // Never let the heading reverse. Riding up a ramp puts the block on a face that
+            // tilts back up the course, and steepest-descent on that face points BACKWARDS —
+            // so this would flip SlideDirection (and with it SlopeRight) for the fraction of a
+            // second the block is on the ramp. That swung the camera around and put the slap
+            // hand on the wrong side. A ramp is a local feature, not a change of course.
+            if (Vector3.Dot(candidate, SlideDirection) > 0f)
+                SlideDirection = candidate;
+        }
 
         // Both axes are anchored to the SLOPE, never to current velocity. Deriving them
         // from velocity meant that once the block drifted sideways the "lateral" axis
@@ -482,6 +547,10 @@ public class IceSlideController : MonoBehaviour
         DampLateralDrift(slopeRight);
         ClampSpeed(slopeForward, slopeRight);
         HoldImpactFloor(slopeForward);
+
+        // Last, so they act on the velocity this step will actually be integrated with.
+        ClampFallSpeed();
+        CushionLanding();
     }
 
     /// <summary>
@@ -514,6 +583,76 @@ public class IceSlideController : MonoBehaviour
 
         float multiplier = vertical > 0f ? riseGravityMultiplier : fallGravityMultiplier;
         body.AddForce(Physics.gravity * (multiplier - 1f), ForceMode.Acceleration);
+    }
+
+    /// <summary>Terminal velocity, so a long drop can't build a descent that has to be undone.</summary>
+    private void ClampFallSpeed()
+    {
+        if (grounded || maxFallSpeed <= 0f)
+            return;
+
+        Vector3 velocity = body.linearVelocity;
+        if (velocity.y < -maxFallSpeed)
+            body.linearVelocity = new Vector3(velocity.x, -maxFallSpeed, velocity.z);
+    }
+
+    /// <summary>
+    /// Suspension for the touchdown: bleeds the into-slope speed off gradually across the last
+    /// landingCushionHeight metres, so the block arrives nearly parallel to the surface and the
+    /// collision has almost nothing left to resolve.
+    ///
+    /// Spreading it out is the whole point. Cancelling the descent in a single step — whether
+    /// the collision does it or this code does — is a velocity discontinuity either way, and
+    /// reads as the same snap. Here the required deceleration is solved from v² = 2·a·d, so it
+    /// is a smooth continuous push of the same order as gravity rather than one hard stop.
+    ///
+    /// Part of the shed speed is handed to along-slope momentum, so landing carries the run
+    /// forward instead of just costing energy.
+    /// </summary>
+    private void CushionLanding()
+    {
+        if (grounded || landingCushionHeight <= 0f)
+            return;
+
+        Vector3 velocity = body.linearVelocity;
+        if (velocity.y >= 0f)
+            return;
+
+        float radius = sphere.radius * MaxAbsScale(transform.lossyScale);
+        Vector3 origin = transform.TransformPoint(sphere.center);
+
+        if (!Physics.SphereCast(
+                origin,
+                radius * 0.95f,
+                Vector3.down,
+                out RaycastHit hit,
+                landingCushionHeight,
+                groundMask,
+                QueryTriggerInteraction.Ignore))
+        {
+            return;
+        }
+
+        float into = -Vector3.Dot(velocity, hit.normal);
+        if (into <= 0.5f)
+            return;
+
+        // Deceleration that brings the approach down to its target by the time the surface is
+        // reached. Solved over the remaining gap, so it eases in as the ground gets closer.
+        float gap = Mathf.Max(hit.distance, 0.05f);
+        float target = into * (1f - landingSmoothing);
+        float decel = Mathf.Min((into * into - target * target) / (2f * gap), maxCushionAcceleration);
+        if (decel <= 0f)
+            return;
+
+        float delta = decel * Time.fixedDeltaTime;
+        Vector3 cushioned = velocity + hit.normal * delta;
+
+        Vector3 alongSlope = Vector3.ProjectOnPlane(SlideDirection, hit.normal);
+        if (alongSlope.sqrMagnitude > 0.0001f)
+            cushioned += alongSlope.normalized * (delta * landingSpeedRecovery);
+
+        body.linearVelocity = cushioned;
     }
 
     private void TryJump()
