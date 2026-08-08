@@ -70,6 +70,13 @@ public class IceSlideController : MonoBehaviour
     [Tooltip("Mouse steering only responds while the left mouse button is held down. " +
              "Uncheck to have the mouse always live.")]
     [SerializeField] private bool requireMouseHold = true;
+    [Tooltip("One impulse per press. The first qualifying swipe after the button goes down " +
+             "fires, and the mouse then does nothing at all until the button is released and " +
+             "pressed again — so a held drag cannot feed the block a stream of impulses. " +
+             "Needs requireMouseHold, since without a press there is nothing to spend. " +
+             "Uncheck for the old behaviour, where reversing or slowing the hand re-arms " +
+             "another slap inside the same hold.")]
+    [SerializeField] private bool oneImpulsePerPress = true;
 
     [Header("Input isolation")]
     [Tooltip("One axis must beat the other by this factor to claim the frame. Higher " +
@@ -120,6 +127,7 @@ public class IceSlideController : MonoBehaviour
     private float pendingSlap;
     private bool swingActive;
     private float swingSign;
+    private bool gestureSpent;
     private float dashTimer;
     private bool dashQueued;
     private float overspeedAllowance;
@@ -245,6 +253,7 @@ public class IceSlideController : MonoBehaviour
         pendingSlap = 0f;
         swingActive = false;
         swingSign = 0f;
+        gestureSpent = false;
         dashQueued = false;
         dashTimer = 0f;
         overspeedAllowance = 0f;
@@ -302,6 +311,9 @@ public class IceSlideController : MonoBehaviour
             swingActive = false;
             swingSign = 0f;
             dashQueued = false;
+
+            // Releasing is what re-arms the next slap.
+            gestureSpent = false;
             wasHeld = false;
             return;
         }
@@ -313,8 +325,14 @@ public class IceSlideController : MonoBehaviour
         if (!wasHeld)
         {
             wasHeld = true;
+            gestureSpent = false;
             return;
         }
+
+        // This press has already produced its impulse. Read nothing, queue nothing: further
+        // dragging must have no physical effect at all until the button is released.
+        if (oneImpulsePerPress && gestureSpent)
+            return;
 
         // Work in pixels/second, not pixels/frame. Raw delta scales with frame time, so
         // the same hand movement would hit softer at high framerates.
@@ -337,7 +355,9 @@ public class IceSlideController : MonoBehaviour
             // so a long drag is a single slap, not a stream of them. Firing every frame
             // (or on a short cooldown) integrates into smooth velocity and reads as the
             // block following the cursor, which is exactly what we don't want.
-            bool reversed = swingSign != 0f && Mathf.Sign(speedX) != swingSign;
+            // Reversing mid-drag re-arms a slap in legacy mode only. Under one-per-press a
+            // flick back the other way is part of the same spent gesture, not a new slap.
+            bool reversed = !oneImpulsePerPress && swingSign != 0f && Mathf.Sign(speedX) != swingSign;
 
             if (!swingActive || reversed)
             {
@@ -348,6 +368,7 @@ public class IceSlideController : MonoBehaviour
 
                 swingActive = true;
                 swingSign = Mathf.Sign(speedX);
+                gestureSpent = true;
             }
         }
         else if (forwardWins)
@@ -356,13 +377,20 @@ public class IceSlideController : MonoBehaviour
             {
                 dashQueued = true;
                 dashTimer = dashCooldown;
+
+                // A dash spends the press too. The gesture resolves to one impulse, whichever
+                // axis won it, so a hold can never keep producing pushes of either kind.
+                gestureSpent = true;
             }
         }
 
         // Deliberately outside the branch chain above: folding this in as another
         // "else if" would swallow the dash branch on any frame with little sideways
         // movement, which is exactly when a forward push happens.
-        if (horizontal < slapReleaseSpeed)
+        // Legacy mode only. Re-arming on a slow hand is exactly what made a single held drag
+        // machine-gun impulses: any dip below this speed opened the gate again mid-gesture.
+        // Under one-per-press only releasing the button re-arms.
+        if (!oneImpulsePerPress && horizontal < slapReleaseSpeed)
         {
             // Hand has slowed to a stop. The gesture is over, so the next one can land.
             swingActive = false;
