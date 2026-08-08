@@ -5813,6 +5813,7 @@ GameObject:
   - component: {fileID: 316262534}
   - component: {fileID: 316262533}
   - component: {fileID: 316262535}
+  - component: {fileID: 316262536}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -5858,6 +5859,7 @@ MonoBehaviour:
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  impactFloorDuration: 0.8
   killHeight: -60
   visual: {fileID: 1864538455}
   visualTurnSpeed: 6
@@ -6018,6 +6020,35 @@ MonoBehaviour:
   minMeltScaleRatio: 0.35
   minMass: 0.3
   maxMass: 1
+--- !u!114 &316262536
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 316262528}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 521d95c5956ece8439cd38e55f976bda, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  controller: {fileID: 316262529}
+  handPrefab: {fileID: 6913852363684947768, guid: 824bcb94e29fab14ba3983d4b01d4278, type: 3}
+  minImpulse: 3
+  maxImpulse: 20
+  startDistance: 6
+  contactDistance: 1.5
+  followThrough: 0.5
+  heightOffset: 0.45
+  swingArc: 55
+  approachTime: 0.045
+  followTime: 0.07
+  retractTime: 0.16
+  impactColor: {r: 0.75, g: 0.95, b: 1, a: 1}
+  contactShake: 0.1
+  playAudio: 1
+  minHandScale: 1.3
+  maxHandScale: 2.2
 --- !u!1001 &328440209
 PrefabInstance:
   m_ObjectHideFlags: 0
