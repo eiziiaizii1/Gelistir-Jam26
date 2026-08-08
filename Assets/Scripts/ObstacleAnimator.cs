@@ -80,19 +80,47 @@ namespace IceEscape
             transform.localRotation = startLocalRotation * Quaternion.Euler(0f, 0f, tilt);
         }
 
+        /// <summary>
+        /// Rises, holds at the top, sinks, holds under. The pauses are the whole point for a
+        /// tentacle: a constant ping-pong reads as decoration, while a beat spent fully out
+        /// makes it a hazard the player has to time a run past.
+        /// </summary>
         private void AnimateSubmergeEmerge()
         {
-            submergeTimer += Time.deltaTime * submergeSpeed;
-
-            // Ping-pong bounce calculation between submerged depth and top position
-            float pingPong = Mathf.PingPong(submergeTimer, 1.0f);
-
-            // Smoothstep curve for natural emergence/submergence
-            float smoothPingPong = Mathf.SmoothStep(0f, 1f, pingPong);
-
             Vector3 submergedPos = startLocalPosition - new Vector3(0f, submergeDepth, 0f);
-            transform.localPosition = Vector3.Lerp(submergedPos, startLocalPosition, smoothPingPong);
+            float travelDuration = submergeSpeed > 0.0001f ? 1f / submergeSpeed : 0f;
+
+            submergeTimer += Time.deltaTime;
+
+            // One full cycle: rise, wait out, sink, wait under.
+            float riseEnd = travelDuration;
+            float topEnd = riseEnd + topPauseDuration;
+            float sinkEnd = topEnd + travelDuration;
+            float cycle = sinkEnd + bottomPauseDuration;
+
+            if (cycle <= 0.0001f)
+                return;
+
+            float t = Mathf.Repeat(submergeTimer, cycle);
+
+            float progress;
+            if (t < riseEnd)
+                progress = travelDuration > 0f ? t / travelDuration : 1f;
+            else if (t < topEnd)
+                progress = 1f;
+            else if (t < sinkEnd)
+                progress = travelDuration > 0f ? 1f - (t - topEnd) / travelDuration : 0f;
+            else
+                progress = 0f;
+
+            isEmerging = t < topEnd;
+
+            transform.localPosition = Vector3.Lerp(
+                submergedPos, startLocalPosition, Mathf.SmoothStep(0f, 1f, progress));
         }
+
+        /// <summary>True while the obstacle is on its way up or standing proud of the ground.</summary>
+        public bool IsEmerging => isEmerging;
 
         private void AnimateSpinning()
         {

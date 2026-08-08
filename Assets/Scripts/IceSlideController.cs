@@ -97,6 +97,12 @@ public class IceSlideController : MonoBehaviour
     [SerializeField] private float airControlMultiplier = 0.85f;
     [SerializeField] private LayerMask groundMask = ~0;
 
+    [Header("Obstacle impacts")]
+    [Tooltip("After a hit, descent is held at or above that hit's floor for this long. " +
+             "Without it a solid obstacle pins the block: the contact zeroes velocity every " +
+             "step and slideAcceleration just presses into the wall forever.")]
+    [SerializeField] private float impactFloorDuration = 0.8f;
+
     [Header("Respawn")]
     [Tooltip("Drop below this world Y and the block returns to its start point. " +
              "Must sit clear below the bottom of the slope (~-30 for the default hill).")]
@@ -117,6 +123,9 @@ public class IceSlideController : MonoBehaviour
     private float dashTimer;
     private bool dashQueued;
     private float overspeedAllowance;
+
+    private float impactFloorSpeed;
+    private float impactFloorTimer;
 
     private float coyoteTimer;
     private float jumpBufferTimer;
@@ -168,6 +177,63 @@ public class IceSlideController : MonoBehaviour
             visual.rotation = UprightRotation();
     }
 
+    /// <summary>
+    /// Bleeds descent speed after hitting an obstacle, without ever bringing the run to a
+    /// halt. Descent is scaled down rather than zeroed and is held at a floor, so the block
+    /// keeps sliding and slideAcceleration immediately starts winding it back up: a hit
+    /// costs momentum and time, it does not end the run.
+    ///
+    /// The floor also covers the case where the physics collision itself killed the
+    /// velocity, which a solid obstacle will happily do.
+    /// </summary>
+    /// <param name="fraction">Portion of current descent to remove, 0..1.</param>
+    /// <param name="floorSpeed">Descent speed to keep no matter how hard the hit was.</param>
+    public void SlowDescent(float fraction, float floorSpeed)
+    {
+        Vector3 forwardAxis = Vector3.ProjectOnPlane(SlideDirection, groundNormal);
+        if (forwardAxis.sqrMagnitude < 0.0001f)
+            return;
+
+        forwardAxis.Normalize();
+
+        Vector3 velocity = body.linearVelocity;
+        float descent = Vector3.Dot(velocity, forwardAxis);
+        float target = Mathf.Max(descent * (1f - Mathf.Clamp01(fraction)), floorSpeed);
+
+        body.linearVelocity = velocity + forwardAxis * (target - descent);
+
+        // Hold that floor for a moment. Setting it once is not enough against a solid
+        // obstacle: the contact zeroes velocity again on the very next step.
+        impactFloorSpeed = floorSpeed;
+        impactFloorTimer = impactFloorDuration;
+
+        // A hit ends any dash boost. Letting the headroom survive would let the block
+        // shrug off an obstacle it should have been punished for.
+        overspeedAllowance = 0f;
+    }
+
+    /// <summary>
+    /// Keeps the block crawling out of an obstacle it is pressed against, for a short window
+    /// after the hit. Runs after ClampSpeed so it is the last word on descent.
+    /// </summary>
+    private void HoldImpactFloor(Vector3 slopeForward)
+    {
+        if (impactFloorTimer <= 0f)
+            return;
+
+        impactFloorTimer -= Time.fixedDeltaTime;
+
+        Vector3 forwardAxis = Vector3.ProjectOnPlane(slopeForward, groundNormal);
+        if (forwardAxis.sqrMagnitude < 0.0001f)
+            return;
+
+        forwardAxis.Normalize();
+
+        float descent = Vector3.Dot(body.linearVelocity, forwardAxis);
+        if (descent < impactFloorSpeed)
+            body.linearVelocity += forwardAxis * (impactFloorSpeed - descent);
+    }
+
     /// <summary>Return to the start of the slope with all momentum cleared.</summary>
     public void Respawn()
     {
@@ -182,6 +248,7 @@ public class IceSlideController : MonoBehaviour
         dashQueued = false;
         dashTimer = 0f;
         overspeedAllowance = 0f;
+        impactFloorTimer = 0f;
         wasHeld = false;
         jumpBufferTimer = 0f;
         coyoteTimer = 0f;
@@ -386,6 +453,7 @@ public class IceSlideController : MonoBehaviour
 
         DampLateralDrift(slopeRight);
         ClampSpeed(slopeForward, slopeRight);
+        HoldImpactFloor(slopeForward);
     }
 
     /// <summary>
