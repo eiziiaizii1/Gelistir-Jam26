@@ -13,8 +13,13 @@ namespace IceEscape
     /// </summary>
     public static class PlayerLocator
     {
-        /// <summary>Impulse velocity per 1.0 of legacy TriggerShake intensity.</summary>
-        private const float ImpulseScale = 3f;
+        /// <summary>
+        /// Impulse velocity per 1.0 of legacy TriggerShake intensity. This is the single trim
+        /// for every scripted shake in the game — obstacles, lava, meteors, falling rocks —
+        /// so it is the one number to change when shakes feel collectively too strong,
+        /// rather than editing each hazard prefab.
+        /// </summary>
+        private const float ImpulseScale = 1.4f;
 
         private static IMeltSource cachedMeltSource;
         private static Rigidbody cachedBody;

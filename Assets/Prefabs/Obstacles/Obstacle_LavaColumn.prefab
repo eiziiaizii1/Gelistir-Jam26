@@ -34,7 +34,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 654481245670406861, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
       propertyPath: flashStrength
-      value: 0.22
+      value: 0.14
       objectReference: {fileID: 0}
     - target: {fileID: 4227098971361347579, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'

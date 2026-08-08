@@ -57,9 +57,11 @@ namespace IceEscape
 
         [Header("Contact feedback")]
         [SerializeField] private Color impactColor = new Color(0.75f, 0.95f, 1f);
-        [Tooltip("Extra shake on contact. The main kick already comes from SlideImpactShake " +
-                 "at impulse time, so keep this as a topping, not a second impact.")]
-        [SerializeField] private float contactShake = 0.1f;
+        [Tooltip("Extra shake on contact. Off by default: SlideImpactShake already kicks the " +
+                 "camera on the same slap, and a second impulse 45ms behind the first read as " +
+                 "one muddy double-bump rather than a crisper hit. The burst and the whoosh " +
+                 "carry the contact instead.")]
+        [SerializeField] private float contactShake = 0f;
         [SerializeField] private bool playAudio = true;
 
         [Header("Scale")]

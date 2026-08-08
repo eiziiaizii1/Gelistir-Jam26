@@ -17,10 +17,12 @@ public class SlideImpactShake : MonoBehaviour
 
     [Header("Slap")]
     [Tooltip("Shake velocity per 1 m/s of slap impulse. Kept low on purpose: the slap " +
-             "should register as a punch, not throw the whole frame around.")]
-    [SerializeField] private float slapShakeScale = 0.055f;
+             "should register as a punch, not throw the whole frame around. Slapping is the " +
+             "main verb, so this fires constantly — it has to stay under the threshold where " +
+             "the player notices the camera instead of the hit.")]
+    [SerializeField] private float slapShakeScale = 0.028f;
     [Tooltip("Ceiling on slap shake, so a max-strength flick can't blow out the view.")]
-    [SerializeField] private float maxSlapShake = 1.1f;
+    [SerializeField] private float maxSlapShake = 0.45f;
     [Tooltip("Fraction of the kick pushed back along the camera's view axis, which adds " +
              "a little punch-in without making the shake feel loose.")]
     [SerializeField] private float slapPunchBack = 0.35f;
@@ -28,14 +30,16 @@ public class SlideImpactShake : MonoBehaviour
     [Header("Dash")]
     [Tooltip("Shake velocity for a forward dash. Directed along the slide, so the kick " +
              "reads as the block being shoved forward rather than jolted at random.")]
-    [SerializeField] private float dashShake = 0.9f;
+    [SerializeField] private float dashShake = 0.35f;
 
     [Header("Landing")]
-    [Tooltip("Ignore touchdowns softer than this, so settling on the slope stays quiet.")]
-    [SerializeField] private float landingMinSpeed = 4f;
+    [Tooltip("Ignore touchdowns softer than this, so settling on the slope stays quiet. " +
+             "Raised above the speed the block skips over minor bumps at, which is what made " +
+             "the shake feel constant rather than event-driven.")]
+    [SerializeField] private float landingMinSpeed = 7f;
     [Tooltip("Shake velocity per 1 m/s of landing impact.")]
-    [SerializeField] private float landingShakeScale = 0.07f;
-    [SerializeField] private float maxLandingShake = 1.4f;
+    [SerializeField] private float landingShakeScale = 0.03f;
+    [SerializeField] private float maxLandingShake = 0.55f;
 
     private CinemachineImpulseSource source;
 

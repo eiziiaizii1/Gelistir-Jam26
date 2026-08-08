@@ -45,20 +45,27 @@ public class SlideCameraDirector : MonoBehaviour
     [Tooltip("Seconds for FOV to catch up. Slow on purpose: fast FOV tracking reads as " +
              "the lens breathing on every bump.")]
     [SerializeField] private float fovSmoothTime = 0.45f;
-    [Tooltip("Extra degrees kicked in briefly when a hard slap lands.")]
-    [SerializeField] private float fovPunch = 6f;
-    [SerializeField] private float fovPunchDecay = 3.5f;
+    [Tooltip("Extra degrees kicked in briefly when a hard slap lands. Kept small: slaps are " +
+             "the core input, so anything big here fires constantly and stops reading as a " +
+             "punch at all.")]
+    [SerializeField] private float fovPunch = 2.5f;
+    [Tooltip("How fast the punch bleeds off. High enough that the kick is over before the " +
+             "next swipe, instead of stacking into a permanent FOV offset.")]
+    [SerializeField] private float fovPunchDecay = 6f;
     [Tooltip("Punch strength for a forward dash, as a multiple of a full-strength slap. " +
-             "Above 1 because a dash is the one input that is purely about going faster, " +
-             "so it should read harder through the lens than a steering slap.")]
-    [SerializeField] private float dashPunchScale = 1.8f;
+             "Above 1 because a dash is purely about going faster, so it should read harder " +
+             "through the lens than a steering slap.")]
+    [SerializeField] private float dashPunchScale = 1.3f;
 
     [Header("Dutch tilt")]
-    [Tooltip("Max roll in degrees at full lateral drift.")]
-    [SerializeField] private float maxDutch = 7f;
+    [Tooltip("Max roll in degrees at full lateral drift. A hint of lean, not a horizon that " +
+             "visibly rotates — the roll is there to be felt, not noticed.")]
+    [SerializeField] private float maxDutch = 3.5f;
     [Tooltip("Lateral speed that produces full roll.")]
-    [SerializeField] private float dutchReferenceSpeed = 14f;
-    [SerializeField] private float dutchSmoothTime = 0.28f;
+    [SerializeField] private float dutchReferenceSpeed = 16f;
+    [Tooltip("Smoothing on the roll. Slow on purpose: lateral velocity jumps on every slap, " +
+             "and tracking it tightly turns each swipe into a horizon snap.")]
+    [SerializeField] private float dutchSmoothTime = 0.4f;
 
     [Header("Follow offset")]
     [SerializeField] private float followDistance = 9.5f;
@@ -79,9 +86,12 @@ public class SlideCameraDirector : MonoBehaviour
 
     [Header("Damping")]
     [Tooltip("Position damping when crawling. Loose and floaty.")]
-    [SerializeField] private Vector3 slowDamping = new Vector3(0.7f, 0.7f, 0.7f);
-    [Tooltip("Position damping at full speed. Tighter, so the camera feels driven.")]
-    [SerializeField] private Vector3 fastDamping = new Vector3(0.25f, 0.35f, 0.2f);
+    [SerializeField] private Vector3 slowDamping = new Vector3(0.85f, 0.85f, 0.85f);
+    [Tooltip("Position damping at full speed. Still generous rather than tight: lag " +
+             "compensation already cancels the trail damping would otherwise leave, so the " +
+             "camera can be smooth without the block creeping away from it. Dropping these " +
+             "toward zero is what makes a fast run feel jittery.")]
+    [SerializeField] private Vector3 fastDamping = new Vector3(0.5f, 0.55f, 0.45f);
 
     [Header("Anticipation")]
     [Tooltip("How far downhill the look target leads at full speed.")]

@@ -78,7 +78,7 @@ MonoBehaviour:
   isDestructible: 0
   destroyImpactSpeed: 22
   flashColor: {r: 1, g: 0.25, b: 0.05, a: 1}
-  flashStrength: 0.4
+  flashStrength: 0.22
   shakeAmount: 0.3
   particleColor: {r: 1, g: 0.35, b: 0.05, a: 1}
   playAudio: 1
