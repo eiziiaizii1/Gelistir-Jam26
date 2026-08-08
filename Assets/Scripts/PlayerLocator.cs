@@ -6,10 +6,10 @@ namespace IceEscape
     /// <summary>
     /// One place to answer "where is the player" and "how do I shake the camera".
     ///
-    /// Scenes differ in which controller drives the ice block (IcePlayerController, or
-    /// IceSlideController + IceMelt) and which rig runs the camera (CameraFollow,
-    /// CameraJuice, or a Cinemachine vcam with an impulse listener). Callers should not
-    /// have to know which, so they come through here instead of hunting a concrete type.
+    /// Scenes differ in which rig runs the camera (CameraFollow, CameraJuice, or a
+    /// Cinemachine vcam with an impulse listener), and a character only has to expose
+    /// IMeltSource to be understood here. Callers should not have to know which, so they
+    /// come through this class instead of hunting for a concrete type.
     /// </summary>
     public static class PlayerLocator
     {

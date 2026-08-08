@@ -485,7 +485,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6254f2bff0d68794b9f544069cbcbf21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  playerController: {fileID: 0}
+  meltSourceBehaviour: {fileID: 0}
   playerRigidbody: {fileID: 0}
 --- !u!4 &203812342
 Transform:
@@ -5668,6 +5668,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1857737e7116243488dc76a64cabcf88, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  trailTime: 1.2
+  startWidth: 0.85
+  endWidth: 0
+  minEmitSpeed: 1
 --- !u!96 &445257376
 TrailRenderer:
   serializedVersion: 3
@@ -6837,7 +6841,6 @@ GameObject:
   - component: {fileID: 1576120495}
   - component: {fileID: 1576120492}
   - component: {fileID: 1576120496}
-  - component: {fileID: 1576120497}
   m_Layer: 0
   m_Name: IcePlayer
   m_TagString: Untagged
@@ -6909,47 +6912,6 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 0
   m_CollisionDetection: 1
---- !u!114 &1576120497
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1576120491}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 346f907831e029344b64779e3f7ba19d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  controlMode: 0
-  moveForce: 1.22
-  maxSpeed: 1.79
-  torqueForce: 0.61
-  jumpForce: 0.23
-  enableMelting: 1
-  meltRatePerSecond: 0.015
-  minMeltScaleRatio: 0.2
-  initialVisualScale: {x: 0.85, y: 0.85, z: 0.85}
-  enableMouseFlick: 1
-  flickThreshold: 2.43
-  flickImpulseForce: 4.03
-  flickCooldown: 0.84
-  maxVisualTiltAngle: 4.97
-  tiltDamping: 0.47
-  groundStickyForce: 25
-  maxVerticalVelocity: 8
-  autoForward: 1
-  autoForwardForce: 0.85
-  sphereCastRadius: 0.4
-  groundCheckDistance: 0.6
-  groundLayer:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  visualTransform: {fileID: 445257371}
-  alignSpeed: 12
-  normalSmoothSpeed: 12
-  unparentVisualOnStart: 1
-  cameraTransform: {fileID: 0}
 --- !u!1 &1633763715
 GameObject:
   m_ObjectHideFlags: 0

@@ -17,9 +17,8 @@ namespace IceEscape
     /// <summary>
     /// Standalone melt: the block shrinks and lightens as it melts away.
     ///
-    /// Lifted out of IcePlayerController.HandleMelting so it can run on a character that
-    /// uses a different movement controller. Behaviour and defaults match the original,
-    /// and IcePickup still works because RestoreIce keeps the same signature.
+    /// Split out of the old all-in-one player controller so melting can run on a character
+    /// using any movement controller. Behaviour and defaults match the original.
     /// </summary>
     public class IceMelt : MonoBehaviour, IMeltSource
     {

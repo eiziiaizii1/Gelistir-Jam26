@@ -21,7 +21,7 @@ namespace IceEscape
         private Text victoryText;
 
         [Header("Target Tracking")]
-        [Tooltip("Anything implementing IMeltSource (IceMelt, IcePlayerController). Auto-found if empty.")]
+        [Tooltip("Anything implementing IMeltSource, e.g. IceMelt. Auto-found if left empty.")]
         [SerializeField] private MonoBehaviour meltSourceBehaviour;
         [SerializeField] private Rigidbody playerRigidbody;
 
@@ -46,8 +46,8 @@ namespace IceEscape
 
         /// <summary>
         /// Binds to whatever is driving the character this scene. The HUD only needs an
-        /// IMeltSource plus a Rigidbody, so it works with IceSlideController + IceMelt
-        /// as well as the older all-in-one IcePlayerController.
+        /// IMeltSource plus a Rigidbody, so it does not care which movement controller
+        /// is in play.
         /// </summary>
         private void FindPlayerReferences()
         {
