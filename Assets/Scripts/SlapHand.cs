@@ -21,10 +21,10 @@ namespace IceEscape
     {
         [Header("Wiring")]
         [SerializeField] private IceSlideController controller;
-        [Tooltip("The hand to swing. Point this at Assets/Prefabs/SlapHand.prefab, or your " +
-                 "own model. Its root takes uniform strength scaling, so put the shape on a " +
-                 "child and keep the root at scale 1. Left empty, a single-slab placeholder " +
-                 "is built in code.")]
+        [Tooltip("The hand to swing. Point this at Assets/Prefabs/SlapHand.prefab, or your own " +
+                 "model. The root takes uniform strength scaling and is aimed by this script, " +
+                 "so the child must sit UNROTATED with the model's +Z along the forearm and +Y " +
+                 "out of the palm. Left empty, a single-slab placeholder is built in code.")]
         [SerializeField] private GameObject handPrefab;
 
         [Header("Swipe strength")]
@@ -43,9 +43,24 @@ namespace IceEscape
         [Tooltip("How far past contact the hand drives before pulling back.")]
         [SerializeField] private float followThrough = 0.5f;
         [SerializeField] private float heightOffset = 0.45f;
-        [Tooltip("Degrees the hand rotates through as it sweeps, for a swing arc rather " +
-                 "than a flat slide.")]
-        [SerializeField] private float swingArc = 55f;
+        [Header("Pose")]
+        [Tooltip("World direction the forearm points, running away from the hand. Held in " +
+                 "WORLD space deliberately: the palm turns to face the block, so without this " +
+                 "the arm would end up on a different world axis for a left slap than a right " +
+                 "one. Any component pointing at the block is projected out.")]
+        [SerializeField] private Vector3 armWorldDirection = new Vector3(0f, 0f, 1f);
+        [Tooltip("Which face of the model looks at the block. The BurnedHand mesh is nearly " +
+                 "symmetric front-to-back — palm-facing and back-facing surface area differ by " +
+                 "only 5% — so this cannot be detected from the geometry. Flip it if you are " +
+                 "seeing the back of the hand.")]
+        [SerializeField] private bool flipPalm = true;
+        [Tooltip("Mirrors the model for slaps from one side so the thumb always points up.\n\n" +
+                 "Holding the forearm on a fixed world axis while the palm turns to face the " +
+                 "block means the model must roll 180 degrees about the arm between a left and " +
+                 "a right slap — correct for one physical hand, but on screen the thumb ends up " +
+                 "underneath for one direction. Mirroring reads it as the other hand instead, " +
+                 "which is what a two-handed slap would actually look like.")]
+        [SerializeField] private bool mirrorPerSide = true;
 
         [Header("Timing")]
         [Tooltip("Approach time from spawn to contact. Small on purpose: the impulse has " +
@@ -72,6 +87,8 @@ namespace IceEscape
         [SerializeField] private float maxHandScale = 2.2f;
 
         private Transform hand;
+        private Transform handModel;
+        private Vector3 handModelBaseScale = Vector3.one;
         private Renderer[] handRenderers;
 
         private bool swinging;
@@ -120,6 +137,10 @@ namespace IceEscape
             contactFired = false;
             timer = 0f;
 
+            // Decided once per slap: orientation is fixed for the whole strike, so the thumb
+            // cannot cross from up to down partway through.
+            ApplyMirror();
+
             SetVisible(true);
             Place(0f);
         }
@@ -149,8 +170,9 @@ namespace IceEscape
         }
 
         /// <summary>
-        /// Positions the hand for a moment in the swing. Distance is measured out along the
-        /// side the slap comes from, so the whole animation is one scalar over time.
+        /// Positions the hand for a moment in the strike. Purely translational: the hand drives
+        /// straight along the slap axis and its orientation never changes, so the whole
+        /// animation is one distance value over time.
         /// </summary>
         private void Place(float t)
         {
@@ -159,39 +181,82 @@ namespace IceEscape
             float overshoot = contact - followThrough;
 
             float distance;
-            float arc;
 
             if (t < approachTime)
             {
                 float k = approachTime > 0f ? t / approachTime : 1f;
                 // Ease in: the hand is already moving when it appears and accelerates in.
                 distance = Mathf.Lerp(reach, contact, k * k);
-                arc = Mathf.Lerp(-swingArc, 0f, k * k);
             }
             else if (t < approachTime + followTime)
             {
                 float k = followTime > 0f ? (t - approachTime) / followTime : 1f;
                 distance = Mathf.Lerp(contact, overshoot, k);
-                arc = Mathf.Lerp(0f, swingArc * 0.4f, k);
             }
             else
             {
                 float k = retractTime > 0f ? (t - approachTime - followTime) / retractTime : 1f;
                 distance = Mathf.Lerp(overshoot, reach, Mathf.SmoothStep(0f, 1f, k));
-                arc = Mathf.Lerp(swingArc * 0.4f, -swingArc, Mathf.SmoothStep(0f, 1f, k));
             }
 
             Vector3 origin = transform.position;
-            Vector3 worldPos = origin - pushAxis * distance + Vector3.up * heightOffset;
 
-            hand.position = worldPos;
-
-            // Palm faces the block, then rolls through the arc around the vertical axis.
-            Quaternion facing = Quaternion.LookRotation(pushAxis, Vector3.up);
-            hand.rotation = Quaternion.AngleAxis(arc, Vector3.up) * facing;
+            hand.position = origin - pushAxis * distance + Vector3.up * heightOffset;
+            hand.rotation = PoseRotation();
 
             float scale = Mathf.Lerp(minHandScale, maxHandScale, strength);
             hand.localScale = Vector3.one * scale;
+        }
+
+        /// <summary>
+        /// Aims the model: its own +Z along the forearm direction, its +Y out through the palm.
+        /// Both are computed rather than baked into the prefab, because the arm has to hold a
+        /// fixed world direction while the palm tracks a block that can be on either side.
+        ///
+        /// Fixed for the whole strike. The hand drives straight in and straight out with no
+        /// turn of its own, so this depends only on which side the slap came from.
+        /// </summary>
+        private Quaternion PoseRotation()
+        {
+            Vector3 arm = Vector3.ProjectOnPlane(armWorldDirection, pushAxis);
+            if (arm.sqrMagnitude < 0.0001f)
+                arm = Vector3.Cross(pushAxis, Vector3.up);
+
+            arm.Normalize();
+
+            // pushAxis runs from the hand toward the block, so facing the palm along it is what
+            // makes the palm look at the character.
+            Vector3 modelUp = flipPalm ? -pushAxis : pushAxis;
+
+            return Quaternion.LookRotation(arm, modelUp);
+        }
+
+        /// <summary>
+        /// Flips the model to the other hand when the pose would leave the thumb underneath.
+        ///
+        /// The thumb sits on the mesh's +X side — it juts out to x=1.70 mid-hand while the
+        /// fingertips on that side only reach 0.20, which is what identifies it. So the sign of
+        /// that axis in world space after aiming says which way up the thumb has landed, and
+        /// that holds for either palm setting rather than assuming a particular one.
+        /// </summary>
+        private void ApplyMirror()
+        {
+            if (handModel == null)
+                return;
+
+            float sign = 1f;
+
+            if (mirrorPerSide)
+            {
+                Vector3 thumbAxis = PoseRotation() * Vector3.right;
+                if (thumbAxis.y < 0f)
+                    sign = -1f;
+            }
+
+            handModel.localScale = new Vector3(
+                handModelBaseScale.x * sign,
+                handModelBaseScale.y,
+                handModelBaseScale.z);
         }
 
         private void FireContact()
@@ -233,6 +298,11 @@ namespace IceEscape
             // block it is supposed to be hitting. Positioned from the player instead.
             hand.SetParent(null, true);
             handRenderers = hand.GetComponentsInChildren<Renderer>(true);
+
+            // The mirror is applied to the model child, not the root: the root's scale is
+            // rewritten every frame from swipe strength and would wipe a sign change out.
+            handModel = hand.childCount > 0 ? hand.GetChild(0) : null;
+            handModelBaseScale = handModel != null ? handModel.localScale : Vector3.one;
         }
 
         /// <summary>
