@@ -39,6 +39,14 @@ public class IceSlideController : MonoBehaviour
     [Tooltip("Forward mouse speed in pixels/second before a dash fires.")]
     [SerializeField] private float dashSpeedThreshold = 700f;
     [SerializeField] private float dashCooldown = 0.6f;
+    [Tooltip("How far a dash may push descent ABOVE maxDescentSpeed. Without this the " +
+             "speed cap deletes the dash on the next physics step whenever the block is " +
+             "already cruising, which is most of a run. Keep it at or above dashImpulse " +
+             "so the whole impulse survives.")]
+    [SerializeField] private float dashOverspeed = 12f;
+    [Tooltip("How fast that extra headroom bleeds back, in m/s per second. Lower makes a " +
+             "dash carry further before the block settles to its normal top speed.")]
+    [SerializeField] private float dashOverspeedDecay = 5f;
 
     [Header("Jump (right mouse button)")]
     [SerializeField] private float jumpImpulse = 10f;
@@ -108,6 +116,7 @@ public class IceSlideController : MonoBehaviour
     private float swingSign;
     private float dashTimer;
     private bool dashQueued;
+    private float overspeedAllowance;
 
     private float coyoteTimer;
     private float jumpBufferTimer;
@@ -129,6 +138,12 @@ public class IceSlideController : MonoBehaviour
 
     /// <summary>Raised on touchdown, carrying the speed the block hit the surface with.</summary>
     public event System.Action<float> Landed;
+
+    /// <summary>Raised when a forward dash fires, carrying the world-space impulse applied.</summary>
+    public event System.Action<Vector3> Dashed;
+
+    /// <summary>Headroom the current dash still has above maxDescentSpeed, in m/s.</summary>
+    public float DashOverspeedRemaining => overspeedAllowance;
 
     public float Speed => body != null ? body.linearVelocity.magnitude : 0f;
     public bool IsGrounded => grounded;
@@ -166,6 +181,7 @@ public class IceSlideController : MonoBehaviour
         swingSign = 0f;
         dashQueued = false;
         dashTimer = 0f;
+        overspeedAllowance = 0f;
         wasHeld = false;
         jumpBufferTimer = 0f;
         coyoteTimer = 0f;
@@ -347,10 +363,25 @@ public class IceSlideController : MonoBehaviour
                 Slapped(impulse);
         }
 
+        // Headroom bleeds off continuously, so the surge decays back to normal top speed
+        // instead of ending abruptly. Done before the dash below so a fresh dash always
+        // gets its full allowance.
+        if (overspeedAllowance > 0f)
+            overspeedAllowance = Mathf.MoveTowards(overspeedAllowance, 0f, dashOverspeedDecay * Time.fixedDeltaTime);
+
         if (dashQueued)
         {
             dashQueued = false;
-            body.AddForce(slopeForward * (dashImpulse * control), ForceMode.Impulse);
+
+            Vector3 dash = slopeForward * (dashImpulse * control);
+            body.AddForce(dash, ForceMode.Impulse);
+
+            // Lift the descent ceiling so the impulse actually survives. Max, not +=, so
+            // hammering the dash cannot stack headroom into unbounded speed.
+            overspeedAllowance = Mathf.Max(overspeedAllowance, dashOverspeed);
+
+            if (Dashed != null)
+                Dashed(dash);
         }
 
         DampLateralDrift(slopeRight);
@@ -475,7 +506,7 @@ public class IceSlideController : MonoBehaviour
 
         // Only the downhill direction is capped. Motion back up the slope is left alone,
         // so bouncing off a rail or an obstacle is never silently amplified.
-        float clampedDescent = Mathf.Min(descent, maxDescentSpeed);
+        float clampedDescent = Mathf.Min(descent, maxDescentSpeed + overspeedAllowance);
         float clampedLateral = Mathf.Clamp(lateral, -maxLateralSpeed, maxLateralSpeed);
 
         if (Mathf.Approximately(clampedDescent, descent) && Mathf.Approximately(clampedLateral, lateral))

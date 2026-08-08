@@ -45,9 +45,13 @@ public class SlideCameraDirector : MonoBehaviour
     [Tooltip("Seconds for FOV to catch up. Slow on purpose: fast FOV tracking reads as " +
              "the lens breathing on every bump.")]
     [SerializeField] private float fovSmoothTime = 0.45f;
-    [Tooltip("Extra degrees kicked in briefly when a dash or hard slap lands.")]
+    [Tooltip("Extra degrees kicked in briefly when a hard slap lands.")]
     [SerializeField] private float fovPunch = 6f;
     [SerializeField] private float fovPunchDecay = 3.5f;
+    [Tooltip("Punch strength for a forward dash, as a multiple of a full-strength slap. " +
+             "Above 1 because a dash is the one input that is purely about going faster, " +
+             "so it should read harder through the lens than a steering slap.")]
+    [SerializeField] private float dashPunchScale = 1.8f;
 
     [Header("Dutch tilt")]
     [Tooltip("Max roll in degrees at full lateral drift.")]
@@ -120,13 +124,19 @@ public class SlideCameraDirector : MonoBehaviour
     private void OnEnable()
     {
         if (controller != null)
+        {
             controller.Slapped += OnSlapped;
+            controller.Dashed += OnDashed;
+        }
     }
 
     private void OnDisable()
     {
         if (controller != null)
+        {
             controller.Slapped -= OnSlapped;
+            controller.Dashed -= OnDashed;
+        }
     }
 
     private void OnSlapped(Vector3 impulse)
@@ -134,6 +144,16 @@ public class SlideCameraDirector : MonoBehaviour
         // Only a genuinely hard hit punches the lens; light taps would make it flutter.
         float strength = Mathf.InverseLerp(6f, 18f, impulse.magnitude);
         punch = Mathf.Max(punch, strength);
+    }
+
+    /// <summary>
+    /// A dash always punches at full strength. Unlike a slap it is never a correction, so
+    /// there is no light version of it to filter out, and the lens kick is most of what
+    /// sells the acceleration.
+    /// </summary>
+    private void OnDashed(Vector3 impulse)
+    {
+        punch = Mathf.Max(punch, dashPunchScale);
     }
 
     private void LateUpdate()

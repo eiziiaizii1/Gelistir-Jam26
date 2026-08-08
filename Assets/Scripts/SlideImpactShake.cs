@@ -25,6 +25,11 @@ public class SlideImpactShake : MonoBehaviour
              "a little punch-in without making the shake feel loose.")]
     [SerializeField] private float slapPunchBack = 0.35f;
 
+    [Header("Dash")]
+    [Tooltip("Shake velocity for a forward dash. Directed along the slide, so the kick " +
+             "reads as the block being shoved forward rather than jolted at random.")]
+    [SerializeField] private float dashShake = 0.9f;
+
     [Header("Landing")]
     [Tooltip("Ignore touchdowns softer than this, so settling on the slope stays quiet.")]
     [SerializeField] private float landingMinSpeed = 4f;
@@ -49,6 +54,7 @@ public class SlideImpactShake : MonoBehaviour
 
         controller.Slapped += OnSlapped;
         controller.Landed += OnLanded;
+        controller.Dashed += OnDashed;
     }
 
     private void OnDisable()
@@ -58,6 +64,7 @@ public class SlideImpactShake : MonoBehaviour
 
         controller.Slapped -= OnSlapped;
         controller.Landed -= OnLanded;
+        controller.Dashed -= OnDashed;
     }
 
     private void OnSlapped(Vector3 impulse)
@@ -73,6 +80,20 @@ public class SlideImpactShake : MonoBehaviour
         direction -= controller.SlideDirection * slapPunchBack;
 
         source.GenerateImpulseWithVelocity(direction.normalized * magnitude);
+    }
+
+    /// <summary>
+    /// Kicks the camera backwards along the slide, which is what a shove forward looks
+    /// like from behind the block, and fires the whoosh so the dash is heard as well as
+    /// seen. Both matter: a dash that only changes a number reads as nothing happening.
+    /// </summary>
+    private void OnDashed(Vector3 impulse)
+    {
+        if (dashShake > 0.0001f)
+            source.GenerateImpulseWithVelocity(-controller.SlideDirection * dashShake);
+
+        if (IceEscape.IceAudioManager.Instance != null)
+            IceEscape.IceAudioManager.Instance.PlaySlapWhoosh();
     }
 
     private void OnLanded(float impactSpeed)
