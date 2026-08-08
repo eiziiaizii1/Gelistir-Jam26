@@ -26,62 +26,57 @@ namespace IceEscape
 
         private void HandleImpact(GameObject targetObj, Vector3 hitPoint)
         {
-            IcePlayerController player = targetObj.GetComponent<IcePlayerController>();
+            IMeltSource player = PlayerLocator.GetMeltSource(targetObj);
             if (player == null)
+                return;
+
+            MonoBehaviour playerBehaviour = player as MonoBehaviour;
+            Rigidbody rb = playerBehaviour != null ? playerBehaviour.GetComponentInParent<Rigidbody>() : null;
+            float impactSpeed = rb != null ? rb.linearVelocity.magnitude : 5f;
+
+            // 1. Apply Melt Damage
+            player.RestoreIce(-meltDamage);
+
+            // 2. Play Explosion SFX
+            if (IceAudioManager.Instance != null)
             {
-                player = targetObj.GetComponentInParent<IcePlayerController>();
+                IceAudioManager.Instance.PlayExplosion();
             }
 
-            if (player != null)
+            // 3. Screen Flash & Camera Shake
+            IceGameHUD hud = PlayerLocator.FindHUD();
+            if (hud != null)
             {
-                Rigidbody rb = player.GetComponent<Rigidbody>();
-                float impactSpeed = rb != null ? rb.linearVelocity.magnitude : 5f;
+                hud.TriggerScreenFlash(new Color(1.0f, 0.2f, 0.05f), 0.45f);
+            }
 
-                // 1. Apply Melt Damage
-                player.RestoreIce(-meltDamage);
+            PlayerLocator.ShakeCamera(cameraShakeAmount);
 
-                // 2. Play Explosion SFX
-                if (IceAudioManager.Instance != null)
-                {
-                    IceAudioManager.Instance.PlayExplosion();
-                }
-
-                // 3. Screen Flash & Camera Shake
-                IceGameHUD hud = FindFirstObjectByType<IceGameHUD>();
-                if (hud != null)
-                {
-                    hud.TriggerScreenFlash(new Color(1.0f, 0.2f, 0.05f), 0.45f);
-                }
-
-                CameraFollow camFollow = FindFirstObjectByType<CameraFollow>();
-                if (camFollow != null)
-                {
-                    camFollow.TriggerShake(cameraShakeAmount);
-                }
-
-                // 4. Visual Squash Impact Effect
-                IceSquashAndStretch squash = player.GetComponentInChildren<IceSquashAndStretch>();
+            // 4. Visual Squash Impact Effect
+            if (rb != null)
+            {
+                IceSquashAndStretch squash = rb.GetComponentInChildren<IceSquashAndStretch>();
                 if (squash != null)
                 {
                     squash.ApplySquash(new Vector3(0.35f, -0.45f, 0.35f));
                 }
+            }
 
-                // 5. Explosion Effect or Bounce Pushback
-                if (isDestructible && impactSpeed >= destroyImpactSpeed)
+            // 5. Explosion Effect or Bounce Pushback
+            if (isDestructible && impactSpeed >= destroyImpactSpeed)
+            {
+                CreateFieryExplosion(hitPoint);
+                Destroy(gameObject);
+            }
+            else
+            {
+                if (rb != null)
                 {
-                    CreateFieryExplosion(hitPoint);
-                    Destroy(gameObject);
+                    Vector3 pushDir = (rb.position - transform.position).normalized;
+                    pushDir.y = 0.3f;
+                    rb.AddForce(pushDir.normalized * bounceForce, ForceMode.Impulse);
                 }
-                else
-                {
-                    if (rb != null)
-                    {
-                        Vector3 pushDir = (player.transform.position - transform.position).normalized;
-                        pushDir.y = 0.3f;
-                        rb.AddForce(pushDir.normalized * bounceForce, ForceMode.Impulse);
-                    }
-                    CreateImpactParticles(hitPoint);
-                }
+                CreateImpactParticles(hitPoint);
             }
         }
 

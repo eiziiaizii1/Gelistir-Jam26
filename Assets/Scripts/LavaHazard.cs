@@ -9,28 +9,19 @@ namespace IceEscape
 
         private void OnTriggerStay(Collider other)
         {
-            IcePlayerController player = other.GetComponent<IcePlayerController>();
+            IMeltSource player = PlayerLocator.GetMeltSource(other.gameObject);
             if (player == null)
+                return;
+
+            player.RestoreIce(-extraMeltRatePerSecond * Time.deltaTime);
+
+            IceGameHUD hud = PlayerLocator.FindHUD();
+            if (hud != null)
             {
-                player = other.GetComponentInParent<IcePlayerController>();
+                hud.TriggerScreenFlash(new Color(1.0f, 0.2f, 0.1f), 0.15f);
             }
 
-            if (player != null)
-            {
-                player.RestoreIce(-extraMeltRatePerSecond * Time.deltaTime);
-
-                IceGameHUD hud = FindFirstObjectByType<IceGameHUD>();
-                if (hud != null)
-                {
-                    hud.TriggerScreenFlash(new Color(1.0f, 0.2f, 0.1f), 0.15f);
-                }
-
-                CameraFollow camFollow = FindFirstObjectByType<CameraFollow>();
-                if (camFollow != null)
-                {
-                    camFollow.TriggerShake(0.08f);
-                }
-            }
+            PlayerLocator.ShakeCamera(0.08f);
         }
     }
 }

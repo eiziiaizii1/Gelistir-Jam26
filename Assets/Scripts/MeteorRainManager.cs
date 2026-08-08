@@ -20,7 +20,6 @@ namespace IceEscape
         [SerializeField] private LayerMask groundLayer = ~0;
 
         private Transform playerTransform;
-        private IcePlayerController playerController;
         private float nextSpawnTime;
 
         private void Start()
@@ -31,24 +30,7 @@ namespace IceEscape
 
         private void FindPlayer()
         {
-            if (playerController == null)
-            {
-                playerController = FindFirstObjectByType<IcePlayerController>();
-            }
-
-            if (playerController != null)
-            {
-                playerTransform = playerController.transform;
-            }
-            else
-            {
-                GameObject playerObj = GameObject.Find("IcePlayer");
-                if (playerObj != null)
-                {
-                    playerTransform = playerObj.transform;
-                    playerController = playerObj.GetComponent<IcePlayerController>();
-                }
-            }
+            playerTransform = PlayerLocator.FindPlayerTransform();
         }
 
         private void Update()
@@ -239,10 +221,9 @@ namespace IceEscape
         {
             if (IceAudioManager.Instance != null) IceAudioManager.Instance.PlayExplosion();
 
-            CameraFollow camFollow = FindFirstObjectByType<CameraFollow>();
-            if (camFollow != null) camFollow.TriggerShake(0.3f * scale);
+            PlayerLocator.ShakeCamera(0.3f * scale);
 
-            IceGameHUD hud = FindFirstObjectByType<IceGameHUD>();
+            IceGameHUD hud = PlayerLocator.FindHUD();
             if (hud != null) hud.TriggerScreenFlash(new Color(1.0f, 0.25f, 0.05f), 0.35f);
 
             // Fiery Particle Explosion

@@ -39,11 +39,7 @@ namespace IceEscape
         {
             if (target == null)
             {
-                IcePlayerController player = FindFirstObjectByType<IcePlayerController>();
-                if (player != null)
-                {
-                    target = player.transform;
-                }
+                target = PlayerLocator.FindPlayerTransform();
             }
 
             if (target != null)

@@ -30,11 +30,7 @@ namespace IceEscape
         {
             if (targetRigidbody == null)
             {
-                IcePlayerController player = FindFirstObjectByType<IcePlayerController>();
-                if (player != null)
-                {
-                    targetRigidbody = player.GetComponent<Rigidbody>();
-                }
+                targetRigidbody = PlayerLocator.FindPlayerBody();
             }
         }
 

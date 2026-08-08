@@ -9,6 +9,9 @@ namespace IceEscape
     public interface IMeltSource
     {
         float CurrentMeltPercent { get; }
+
+        /// <summary>Add ice back, or pass a negative amount to melt some off.</summary>
+        void RestoreIce(float amount);
     }
 
     /// <summary>

@@ -34,11 +34,7 @@ namespace IceEscape
 
         private void Start()
         {
-            IcePlayerController player = FindFirstObjectByType<IcePlayerController>();
-            if (player != null)
-            {
-                playerRb = player.GetComponent<Rigidbody>();
-            }
+            playerRb = PlayerLocator.FindPlayerBody();
         }
 
         private void SetupAudioSources()
@@ -70,6 +66,11 @@ namespace IceEscape
 
         private void Update()
         {
+            if (playerRb == null)
+            {
+                playerRb = PlayerLocator.FindPlayerBody();
+            }
+
             if (slideAudioSource != null && playerRb != null)
             {
                 float speed = playerRb.linearVelocity.magnitude;

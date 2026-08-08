@@ -12,7 +12,7 @@ namespace IceEscape
     }
 
     [RequireComponent(typeof(Rigidbody))]
-    public class IcePlayerController : MonoBehaviour
+    public class IcePlayerController : MonoBehaviour, IMeltSource
     {
         [Header("Control Settings")]
         [SerializeField] private ControlMode controlMode = ControlMode.MouseFlickSlap;

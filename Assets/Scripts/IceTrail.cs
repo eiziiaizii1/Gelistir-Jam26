@@ -25,11 +25,7 @@ namespace IceEscape
 
         private void Start()
         {
-            IcePlayerController player = FindFirstObjectByType<IcePlayerController>();
-            if (player != null)
-            {
-                parentRb = player.GetComponent<Rigidbody>();
-            }
+            parentRb = PlayerLocator.FindPlayerBody();
 
             SetupTrail();
             CreateWaterSizzleParticles();
