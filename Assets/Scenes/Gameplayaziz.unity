@@ -5391,6 +5391,19 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!134 &201536400
+PhysicsMaterial:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Ice (Instance)
+  serializedVersion: 2
+  m_DynamicFriction: 0.02
+  m_StaticFriction: 0.01
+  m_Bounciness: 0
+  m_FrictionCombine: 1
+  m_BounceCombine: 0
 --- !u!1 &217265715
 GameObject:
   m_ObjectHideFlags: 0
@@ -5835,7 +5848,9 @@ MonoBehaviour:
   jumpBuffer: 0.12
   requireMouseHold: 1
   axisDominance: 1.5
-  maxSpeed: 40
+  maxDescentSpeed: 40
+  maxLateralSpeed: 30
+  slideAcceleration: 6
   lateralDamping: 1.2
   airControlMultiplier: 0.85
   groundMask:
@@ -5851,7 +5866,7 @@ SphereCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 316262528}
-  m_Material: {fileID: 13400000, guid: dfe8ad5dcdcef9841ba5dcf9d787186d, type: 2}
+  m_Material: {fileID: 201536400}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -11466,7 +11481,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6254f2bff0d68794b9f544069cbcbf21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  playerController: {fileID: 0}
+  meltSourceBehaviour: {fileID: 0}
   playerRigidbody: {fileID: 0}
 --- !u!4 &977465802
 Transform:
@@ -12179,7 +12194,9 @@ MonoBehaviour:
   dutchSmoothTime: 0.28
   followDistance: 9.5
   followHeight: 3.6
-  speedPullback: 3.2
+  speedPullback: 0
+  apparentSizeHold: 1
+  lagCompensation: 1
   slowDamping: {x: 0.7, y: 0.7, z: 0.7}
   fastDamping: {x: 0.25, y: 0.35, z: 0.2}
   lookAheadDistance: 11
@@ -12749,9 +12766,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   enableMeteorRain: 1
-  spawnInterval: 3.5
-  spawnDistanceAhead: 20
-  meteorFallSpeed: 35
+  minSpawnInterval: 1.2
+  maxSpawnInterval: 3
+  playerPathTargetChance: 0.5
+  randomSurroundingChance: 0.3
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
 --- !u!4 &1933193705
 Transform:
   m_ObjectHideFlags: 0

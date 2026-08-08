@@ -1,10 +1,14 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Serialization;
 
 /// <summary>
-/// Physics-driven downhill slide. Gravity supplies the forward motion; the mouse only
-/// slaps the block sideways (X) and dashes it forward (Y), both as instantaneous
-/// impulses so momentum carries on the ice.
+/// Physics-driven downhill slide. Gravity plus slideAcceleration supply the descent, which
+/// builds continuously; the mouse only slaps the block sideways (X) and dashes it forward
+/// (Y), both as instantaneous impulses so momentum carries on the ice.
+///
+/// Descent and cross-slope drift are capped independently, so a slap is purely a steering
+/// input: it adds lateral velocity and can never trade descent away to pay for it.
 ///
 /// The two mouse axes are strictly isolated: a single frame of mouse movement resolves
 /// to a slap OR a dash, never both, so side-to-side correction can never fire the dash.
@@ -65,7 +69,17 @@ public class IceSlideController : MonoBehaviour
     [SerializeField] private float axisDominance = 1.5f;
 
     [Header("Slide")]
-    [SerializeField] private float maxSpeed = 40f;
+    [Tooltip("Ceiling on DOWNHILL speed only. Cross-slope drift is capped separately, so " +
+             "piling on lateral speed can never eat into the descent.")]
+    [FormerlySerializedAs("maxSpeed")]
+    [SerializeField] private float maxDescentSpeed = 60f;
+    [Tooltip("Ceiling on cross-slope drift. Capped on its own axis so hitting the limit " +
+             "steals nothing from the descent.")]
+    [SerializeField] private float maxLateralSpeed = 30f;
+    [Tooltip("Continuous downhill acceleration while grounded, on top of gravity. This is " +
+             "what makes the block keep winding up on a shallow slope instead of settling " +
+             "at whatever speed the incline alone gives. 0 = gravity only.")]
+    [SerializeField] private float slideAcceleration = 6f;
     [Tooltip("How fast sideways drift bleeds off, per second. Downhill speed is never " +
              "damped. 0 = pure ice, drift persists until something stops it.")]
     [SerializeField] private float lateralDamping = 1.2f;
@@ -313,6 +327,12 @@ public class IceSlideController : MonoBehaviour
         Vector3 slopeRight = Vector3.Cross(groundNormal, slopeForward).normalized;
         SlopeRight = slopeRight;
 
+        // Continuous wind-up along the slope. Applied as acceleration so it is mass- and
+        // melt-independent, and only while grounded: airborne descent is already handled
+        // by fallGravityMultiplier, and doing both would double-dip.
+        if (grounded && slideAcceleration > 0f)
+            body.AddForce(slopeForward * slideAcceleration, ForceMode.Acceleration);
+
         float control = grounded ? 1f : airControlMultiplier;
 
         if (!Mathf.Approximately(pendingSlap, 0f))
@@ -334,7 +354,7 @@ public class IceSlideController : MonoBehaviour
         }
 
         DampLateralDrift(slopeRight);
-        ClampSpeed();
+        ClampSpeed(slopeForward, slopeRight);
     }
 
     /// <summary>
@@ -424,14 +444,44 @@ public class IceSlideController : MonoBehaviour
         body.linearVelocity += slopeRight * (decayed - sideways);
     }
 
-    private void ClampSpeed()
+    /// <summary>
+    /// Caps descent and cross-slope drift on their own axes.
+    ///
+    /// This used to clamp the combined along-surface vector and rescale it as a whole,
+    /// which coupled the two axes: lateral speed added by a slap pushed the total over the
+    /// cap, and the correction came out of BOTH components. Slapping therefore slowed the
+    /// descent, and each further slap slowed it again. Splitting the cap keeps a slap
+    /// purely lateral, so downhill momentum only ever grows.
+    /// </summary>
+    private void ClampSpeed(Vector3 slopeForward, Vector3 slopeRight)
     {
         Vector3 velocity = body.linearVelocity;
-
-        // Only the along-surface component is capped, so falling is never throttled.
         Vector3 planar = Vector3.ProjectOnPlane(velocity, groundNormal);
-        if (planar.magnitude > maxSpeed)
-            body.linearVelocity = planar.normalized * maxSpeed + (velocity - planar);
+        Vector3 alongNormal = velocity - planar;
+
+        // slopeForward is only guaranteed to lie in the surface plane while grounded;
+        // airborne it is the last remembered heading and can tilt out of it. Re-project so
+        // the two axes are a true orthonormal basis of the plane and the split below is
+        // lossless — otherwise rebuilding the vector would distort velocity in mid-air.
+        Vector3 forwardAxis = Vector3.ProjectOnPlane(slopeForward, groundNormal);
+        if (forwardAxis.sqrMagnitude < 0.0001f)
+            return;
+
+        forwardAxis.Normalize();
+        Vector3 rightAxis = Vector3.Cross(groundNormal, forwardAxis).normalized;
+
+        float descent = Vector3.Dot(planar, forwardAxis);
+        float lateral = Vector3.Dot(planar, rightAxis);
+
+        // Only the downhill direction is capped. Motion back up the slope is left alone,
+        // so bouncing off a rail or an obstacle is never silently amplified.
+        float clampedDescent = Mathf.Min(descent, maxDescentSpeed);
+        float clampedLateral = Mathf.Clamp(lateral, -maxLateralSpeed, maxLateralSpeed);
+
+        if (Mathf.Approximately(clampedDescent, descent) && Mathf.Approximately(clampedLateral, lateral))
+            return;
+
+        body.linearVelocity = forwardAxis * clampedDescent + rightAxis * clampedLateral + alongNormal;
     }
 
     private void UpdateVisual()

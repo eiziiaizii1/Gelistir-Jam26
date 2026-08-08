@@ -12,6 +12,10 @@ using UnityEngine;
 ///   Damping   tightens at speed, so the camera stops feeling like it is being towed
 ///   Anticipation  pushes the look target downhill, so the camera leads the run
 ///
+/// Speed is expressed through the lens and the framing, never by letting the block shrink
+/// away: the rig dollies in as the FOV widens and feeds the damping trail forward, so the
+/// block holds its size on screen however fast the run gets.
+///
 /// Everything is smoothed. Snapping any of these to raw velocity reads as camera jitter,
 /// especially the dutch, because lateral velocity changes discontinuously on every slap.
 /// </summary>
@@ -58,6 +62,17 @@ public class SlideCameraDirector : MonoBehaviour
     [Tooltip("Extra distance pulled back at full speed, so speed opens the framing up.")]
     [SerializeField] private float speedPullback = 3.2f;
 
+    [Header("Framing hold")]
+    [Tooltip("Dollies the rig in as the FOV widens, so a wider lens streaks more world past " +
+             "the edges without shrinking the block on screen. 1 = constant on-screen size, " +
+             "0 = the lens widening shrinks the block as it used to.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float apparentSizeHold = 1f;
+    [Tooltip("Cancels the extra distance position damping leaves behind a fast target. " +
+             "1 = hold the intended distance at any speed, 0 = original trailing feel.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float lagCompensation = 1f;
+
     [Header("Damping")]
     [Tooltip("Position damping when crawling. Loose and floaty.")]
     [SerializeField] private Vector3 slowDamping = new Vector3(0.7f, 0.7f, 0.7f);
@@ -69,6 +84,13 @@ public class SlideCameraDirector : MonoBehaviour
     [SerializeField] private float lookAheadDistance = 11f;
     [SerializeField] private float lookAheadHeight = 1.4f;
     [SerializeField] private float lookAheadSmoothTime = 0.25f;
+
+    /// <summary>
+    /// How far Cinemachine's damper settles behind a constant-velocity target, as a
+    /// fraction of (speed * dampTime). Measured against Damper.Damp at 60Hz, where it
+    /// sits between 0.18 and 0.21 across the damping range this rig uses.
+    /// </summary>
+    private const float DampTrailCoefficient = 0.2f;
 
     private CinemachineCamera cam;
     private CinemachineFollow follow;
@@ -175,15 +197,45 @@ public class SlideCameraDirector : MonoBehaviour
             back = Vector3.forward;
         back.Normalize();
 
+        Vector3 offset = -back * (followDistance + speedPullback * speed01)
+                         + Vector3.up * followHeight;
+
+        // A wider lens shrinks everything in frame, block included. Dolly the whole rig in
+        // by the matching tan ratio so the FOV ramp reads as the world rushing past instead
+        // of the block receding. Scaling the entire offset (not just the distance) keeps the
+        // camera's angle on the block fixed, so only its distance changes.
+        offset *= Mathf.Lerp(1f, ApparentSizeScale(), apparentSizeHold);
+
+        TrackerSettings tracker = follow.TrackerSettings;
+        Vector3 damping = Vector3.Lerp(slowDamping, fastDamping, speed01);
+        tracker.PositionDamping = damping;
+        follow.TrackerSettings = tracker;
+
+        // Position damping settles a fixed distance behind a target moving at constant
+        // velocity, and that distance grows with speed - so the faster the block goes, the
+        // further back the camera sits. Feeding the predicted trail forward cancels it in
+        // the steady state while leaving the damping free to smooth transients.
+        Vector3 lead = Vector3.Scale(body.linearVelocity, damping)
+                       * (DampTrailCoefficient * lagCompensation);
+
         // Written straight through. CinemachineFollow already damps its way to the offset,
         // so smoothing here too stacked two filters in series on the same value and made
         // the rig lag unevenly whenever frame times varied.
-        follow.FollowOffset = -back * (followDistance + speedPullback * speed01)
-                              + Vector3.up * followHeight;
+        follow.FollowOffset = offset + lead;
+    }
 
-        TrackerSettings tracker = follow.TrackerSettings;
-        tracker.PositionDamping = Vector3.Lerp(slowDamping, fastDamping, speed01);
-        follow.TrackerSettings = tracker;
+    /// <summary>
+    /// Distance multiplier that holds on-screen size constant as the lens widens. Apparent
+    /// size goes as 1/(distance * tan(fov/2)), so keeping distance * tan(fov/2) fixed keeps
+    /// the block the same size in frame.
+    /// </summary>
+    private float ApparentSizeScale()
+    {
+        float currentTan = Mathf.Tan(cam.Lens.FieldOfView * 0.5f * Mathf.Deg2Rad);
+        if (currentTan < 0.0001f)
+            return 1f;
+
+        return Mathf.Tan(baseFov * 0.5f * Mathf.Deg2Rad) / currentTan;
     }
 
     private void UpdateLookTarget(float speed01, float dt)
