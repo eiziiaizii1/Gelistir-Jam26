@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace IceEscape
 {
@@ -12,6 +14,7 @@ namespace IceEscape
         private Text distanceText;
         private Text meltText;
         private Image meltBarFill;
+        private Material meltBarMaterial;
         private Image screenFlashOverlay;
 
         private GameObject gameOverPanel;
@@ -87,10 +90,14 @@ namespace IceEscape
             if (playerRigidbody != null)
             {
                 float speed = playerRigidbody.linearVelocity.magnitude;
-                if (speedText != null) speedText.text = $"HIZ: {speed:F1} m/s";
+                float kmh = speed * 3.6f; // Arcade KM/H display
+                if (speedText != null) 
+                {
+                    speedText.text = $"⚡ <size=22><b>{kmh:F0}</b></size> <size=12>KM/H</size>";
+                }
 
                 float distance = Vector3.Distance(startPosition, playerRigidbody.position);
-                if (distanceText != null) distanceText.text = $"MESAFE: {distance:F0} m";
+                if (distanceText != null) distanceText.text = $"{distance:F0} M";
             }
 
             // Update Melt Meter Bar & Text
@@ -99,17 +106,33 @@ namespace IceEscape
                 float meltRatio = meltSource.CurrentMeltPercent;
                 meltBarFill.fillAmount = Mathf.Lerp(meltBarFill.fillAmount, meltRatio, Time.deltaTime * 8f);
 
+                if (meltBarMaterial != null)
+                {
+                    meltBarMaterial.SetFloat("_FillAmount", meltBarFill.fillAmount);
+                }
+
                 int percentInt = Mathf.RoundToInt(meltRatio * 100f);
-                meltText.text = $"BUZ HACMİ: %{percentInt}";
+
+                if (meltRatio < 0.25f)
+                {
+                    float warnPulse = Mathf.PingPong(Time.time * 8f, 1f);
+                    meltText.text = $"⚠️ ICE CRITICAL: {percentInt}%";
+                    meltText.color = Color.Lerp(new Color(1f, 0.2f, 0.2f), Color.white, warnPulse);
+                }
+                else
+                {
+                    meltText.text = $"ICE HEALTH: {percentInt}%";
+                    meltText.color = new Color(0.85f, 0.96f, 1.0f);
+                }
 
                 Color barColor;
                 if (meltRatio > 0.5f)
                 {
-                    barColor = Color.Lerp(new Color(0.9f, 0.6f, 0.1f), new Color(0.1f, 0.9f, 1.0f), (meltRatio - 0.5f) * 2f);
+                    barColor = Color.Lerp(new Color(0.95f, 0.7f, 0.1f), new Color(0.15f, 0.95f, 1.0f), (meltRatio - 0.5f) * 2f);
                 }
                 else
                 {
-                    barColor = Color.Lerp(new Color(1.0f, 0.2f, 0.1f), new Color(0.9f, 0.6f, 0.1f), meltRatio * 2f);
+                    barColor = Color.Lerp(new Color(1.0f, 0.15f, 0.1f), new Color(0.95f, 0.7f, 0.1f), meltRatio * 2f);
                 }
 
                 meltBarFill.color = barColor;
@@ -162,11 +185,81 @@ namespace IceEscape
 
         private void TriggerGameOver()
         {
+            if (isGameOver) return;
             isGameOver = true;
+
+            StartCoroutine(DoSmoothGameOverTransition());
+        }
+
+        private System.Collections.IEnumerator DoSmoothGameOverTransition()
+        {
+            // 1. Subtle dark red flash
+            TriggerScreenFlash(new Color(0.2f, 0.02f, 0.02f), 0.6f);
+
+            // 2. Prepare Game Over Panel CanvasGroup for smooth fade-in
+            CanvasGroup cg = null;
             if (gameOverPanel != null)
             {
+                cg = gameOverPanel.GetComponent<CanvasGroup>();
+                if (cg == null) cg = gameOverPanel.AddComponent<CanvasGroup>();
+                cg.alpha = 0f;
                 gameOverPanel.SetActive(true);
             }
+
+            // 3. Find Volume for Post-Processing lerp
+            Volume volume = FindFirstObjectByType<Volume>();
+            ColorAdjustments colorAdjustments = null;
+            Vignette vignette = null;
+
+            float startSat = 15f;
+            float startVig = 0.42f;
+
+            if (volume != null && volume.profile != null)
+            {
+                if (volume.profile.TryGet<ColorAdjustments>(out colorAdjustments))
+                {
+                    colorAdjustments.saturation.overrideState = true;
+                    startSat = colorAdjustments.saturation.value;
+                }
+
+                if (volume.profile.TryGet<Vignette>(out vignette))
+                {
+                    vignette.intensity.overrideState = true;
+                    startVig = vignette.intensity.value;
+                }
+            }
+
+            // 4. Smooth 1.6 second Lerp for desaturation, vignette, and UI panel fade-in!
+            float duration = 1.6f;
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                float smoothT = Mathf.SmoothStep(0f, 1f, t);
+
+                if (colorAdjustments != null)
+                {
+                    colorAdjustments.saturation.value = Mathf.Lerp(startSat, -100f, smoothT);
+                }
+
+                if (vignette != null)
+                {
+                    vignette.intensity.value = Mathf.Lerp(startVig, 0.78f, smoothT);
+                }
+
+                if (cg != null)
+                {
+                    cg.alpha = Mathf.Lerp(0f, 1f, smoothT);
+                }
+
+                yield return null;
+            }
+
+            if (colorAdjustments != null) colorAdjustments.saturation.value = -100f;
+            if (vignette != null) vignette.intensity.value = 0.78f;
+            if (cg != null) cg.alpha = 1f;
         }
 
         public void RestartGame()
@@ -193,10 +286,14 @@ namespace IceEscape
 
             canvasObj.AddComponent<GraphicRaycaster>();
 
-            Font defaultFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Font defaultFont = null;
+#if UNITY_EDITOR
+            defaultFont = UnityEditor.AssetDatabase.LoadAssetAtPath<Font>("Assets/Font/ManufacturingConsent-Regular.ttf");
+#endif
+            if (defaultFont == null) defaultFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (defaultFont == null) defaultFont = Font.CreateDynamicFontFromOSFont("Arial", 16);
 
-            // Melt Meter Panel (Top Left - Minimal Translucent)
+            // Melt Meter Panel (Top Left - Modern Cyan Glass Card)
             GameObject meltPanelObj = new GameObject("MeltMeterPanel");
             meltPanelObj.transform.SetParent(canvasObj.transform, false);
 
@@ -204,39 +301,40 @@ namespace IceEscape
             meltRect.anchorMin = new Vector2(0f, 1f);
             meltRect.anchorMax = new Vector2(0f, 1f);
             meltRect.pivot = new Vector2(0f, 1f);
-            meltRect.anchoredPosition = new Vector2(20f, -20f);
-            meltRect.sizeDelta = new Vector2(220f, 50f);
+            meltRect.anchoredPosition = new Vector2(25f, -25f);
+            meltRect.sizeDelta = new Vector2(260f, 58f);
 
             Image meltPanelBg = meltPanelObj.AddComponent<Image>();
-            meltPanelBg.color = new Color(0.02f, 0.05f, 0.1f, 0.65f);
+            meltPanelBg.color = new Color(0.03f, 0.08f, 0.16f, 0.85f); // Deep Cyan Glass
 
             GameObject meltTextObj = new GameObject("MeltText");
             meltTextObj.transform.SetParent(meltPanelObj.transform, false);
 
             RectTransform mtRect = meltTextObj.AddComponent<RectTransform>();
-            mtRect.anchorMin = new Vector2(0f, 0.5f);
+            mtRect.anchorMin = new Vector2(0f, 0.45f);
             mtRect.anchorMax = new Vector2(1f, 1f);
             mtRect.sizeDelta = Vector2.zero;
 
             meltText = meltTextObj.AddComponent<Text>();
             meltText.font = defaultFont;
-            meltText.text = "BUZ HACMİ: %100";
+            meltText.text = "❄️ BUZ SAĞLIĞI: %100";
             meltText.alignment = TextAnchor.MiddleCenter;
             meltText.color = new Color(0.85f, 0.95f, 1.0f);
-            meltText.fontSize = 13;
+            meltText.fontSize = 14;
             meltText.fontStyle = FontStyle.Bold;
+            meltText.supportRichText = true;
 
             GameObject barBgObj = new GameObject("BarBackground");
             barBgObj.transform.SetParent(meltPanelObj.transform, false);
 
             RectTransform barBgRect = barBgObj.AddComponent<RectTransform>();
             barBgRect.anchorMin = new Vector2(0.05f, 0.12f);
-            barBgRect.anchorMax = new Vector2(0.95f, 0.45f);
+            barBgRect.anchorMax = new Vector2(0.95f, 0.42f);
             barBgRect.sizeDelta = Vector2.zero;
             barBgRect.anchoredPosition = Vector2.zero;
 
             Image barBgImage = barBgObj.AddComponent<Image>();
-            barBgImage.color = new Color(0.1f, 0.1f, 0.18f, 0.8f);
+            barBgImage.color = new Color(0.08f, 0.12f, 0.22f, 0.9f);
 
             GameObject barFillObj = new GameObject("BarFill");
             barFillObj.transform.SetParent(barBgObj.transform, false);
@@ -251,9 +349,16 @@ namespace IceEscape
             meltBarFill.type = Image.Type.Filled;
             meltBarFill.fillMethod = Image.FillMethod.Horizontal;
             meltBarFill.fillOrigin = (int)Image.OriginHorizontal.Left;
-            meltBarFill.color = new Color(0.1f, 0.9f, 1.0f);
+            meltBarFill.color = Color.white;
 
-            // Speedometer Panel (Top Right - Minimal)
+            Shader iceShader = Shader.Find("UI/IceHealthBar");
+            if (iceShader != null)
+            {
+                meltBarMaterial = new Material(iceShader);
+                meltBarFill.material = meltBarMaterial;
+            }
+
+            // Speedometer Panel (Top Right - Arcade Neon Card)
             GameObject speedObj = new GameObject("SpeedPanel");
             speedObj.transform.SetParent(canvasObj.transform, false);
 
@@ -261,11 +366,11 @@ namespace IceEscape
             speedRect.anchorMin = new Vector2(1f, 1f);
             speedRect.anchorMax = new Vector2(1f, 1f);
             speedRect.pivot = new Vector2(1f, 1f);
-            speedRect.anchoredPosition = new Vector2(-20f, -20f);
-            speedRect.sizeDelta = new Vector2(140f, 40f);
+            speedRect.anchoredPosition = new Vector2(-25f, -25f);
+            speedRect.sizeDelta = new Vector2(160f, 52f);
 
             Image speedBg = speedObj.AddComponent<Image>();
-            speedBg.color = new Color(0.02f, 0.05f, 0.1f, 0.65f);
+            speedBg.color = new Color(0.03f, 0.08f, 0.16f, 0.85f); // Deep Cyan Glass
 
             GameObject speedTextObj = new GameObject("SpeedText");
             speedTextObj.transform.SetParent(speedObj.transform, false);
@@ -278,11 +383,12 @@ namespace IceEscape
 
             speedText = speedTextObj.AddComponent<Text>();
             speedText.font = defaultFont;
-            speedText.text = "HIZ: 0.0 m/s";
+            speedText.text = "⚡ <size=22><b>0</b></size> <size=12>KM/H</size>";
             speedText.alignment = TextAnchor.MiddleCenter;
-            speedText.color = new Color(0.4f, 0.9f, 1.0f);
+            speedText.color = new Color(0.2f, 0.95f, 1.0f);
             speedText.fontSize = 14;
             speedText.fontStyle = FontStyle.Bold;
+            speedText.supportRichText = true;
 
             // Screen Flash Overlay (Disabled by default).
             // Created after the readouts so the flash tints them, but before the end-game
@@ -323,8 +429,7 @@ namespace IceEscape
 
             victoryText = vTextObj.AddComponent<Text>();
             victoryText.font = defaultFont;
-            // No emoji: the built-in legacy font has no glyphs for them and draws blanks.
-            victoryText.text = "TEBRİKLER! CEHENNEMDEN KAÇTIN!\n<size=18>Buz Bloğun Erimeden Portala Ulaştı!</size>";
+            victoryText.text = "VICTORY! ESCAPED HELL!\n<size=18>Reached the Portal Before Melting!</size>";
             victoryText.alignment = TextAnchor.MiddleCenter;
             victoryText.color = new Color(0.2f, 0.95f, 1.0f);
             victoryText.fontSize = 28;
@@ -357,7 +462,7 @@ namespace IceEscape
 
             Text vBtnText = vbTextObj.AddComponent<Text>();
             vBtnText.font = defaultFont;
-            vBtnText.text = "TEKRAR OYNA";
+            vBtnText.text = "PLAY AGAIN";
             vBtnText.alignment = TextAnchor.MiddleCenter;
             vBtnText.color = Color.white;
             vBtnText.fontSize = 18;
@@ -388,7 +493,7 @@ namespace IceEscape
 
             gameOverText = goTextObj.AddComponent<Text>();
             gameOverText.font = defaultFont;
-            gameOverText.text = "CEHENNEMDE ERİDİN!\n<size=18>Buz Küpün Tamamen Sıcaklıkta Eridi</size>";
+            gameOverText.text = "MELTED IN HELL!\n<size=18>Your Ice Cube Melted in the Inferno</size>";
             gameOverText.alignment = TextAnchor.MiddleCenter;
             gameOverText.color = new Color(1.0f, 0.3f, 0.2f);
             gameOverText.fontSize = 28;

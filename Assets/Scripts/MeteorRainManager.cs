@@ -8,13 +8,13 @@ namespace IceEscape
     {
         [Header("Mixed Meteor Rain Settings")]
         [SerializeField] private bool enableMeteorRain = true;
-        [SerializeField] private float minSpawnInterval = 1.2f;   // Dynamic random interval (min)
-        [SerializeField] private float maxSpawnInterval = 3.0f;   // Dynamic random interval (max)
+        [SerializeField] private float minSpawnInterval = 0.5f;   // Fast dynamic rain (min)
+        [SerializeField] private float maxSpawnInterval = 1.4f;   // Fast dynamic rain (max)
 
         [Header("Meteor Targeting Odds")]
-        [Range(0f, 1f)] [SerializeField] private float playerPathTargetChance = 0.5f; // 50% ahead on player path
-        [Range(0f, 1f)] [SerializeField] private float randomSurroundingChance = 0.3f; // 30% random around track
-        // Remaining 20% = Direct Homing Strike
+        [Range(0f, 1f)] [SerializeField] private float playerPathTargetChance = 0.45f; // 45% ahead on player path
+        [Range(0f, 1f)] [SerializeField] private float randomSurroundingChance = 0.40f; // 40% wild random around track & rails
+        // Remaining 15% = Direct Homing Strike
 
         [Header("Layer Settings")]
         [SerializeField] private LayerMask groundLayer = ~0;
@@ -51,7 +51,13 @@ namespace IceEscape
             if (Time.time >= nextSpawnTime)
             {
                 nextSpawnTime = Time.time + Random.Range(minSpawnInterval, maxSpawnInterval);
-                SpawnMixedMeteor();
+
+                // 1 to 2 meteors in each volley
+                int volleyCount = Random.value > 0.6f ? 2 : 1;
+                for (int v = 0; v < volleyCount; v++)
+                {
+                    SpawnMixedMeteor();
+                }
             }
         }
 
@@ -66,8 +72,8 @@ namespace IceEscape
             if (playerTransform == null) FindPlayer();
 
             Vector3 targetPos = Vector3.zero;
-            float meteorSize = Random.Range(1.8f, 2.8f);
-            float fallSpeed = Random.Range(32f, 45f);
+            float meteorSize = Random.Range(2.0f, 3.5f);
+            float fallSpeed = Random.Range(35f, 52f);
 
             float roll = Random.value;
 
@@ -85,29 +91,29 @@ namespace IceEscape
                 if (roll < playerPathTargetChance)
                 {
                     // 1. Direct Ahead on Player Path (Dodging required!)
-                    float distanceAhead = Random.Range(14f, 22f);
-                    float sideOffset = Random.Range(-2.2f, 2.2f);
+                    float distanceAhead = Random.Range(12f, 26f);
+                    float sideOffset = Random.Range(-4.5f, 4.5f);
                     targetPos = playerTransform.position + forwardDir * distanceAhead + Vector3.right * sideOffset;
                 }
                 else if (roll < (playerPathTargetChance + randomSurroundingChance))
                 {
-                    // 2. Random Surrounding Track Cluster
-                    float distanceAhead = Random.Range(8f, 30f);
-                    float sideOffset = Random.Range(-6.0f, 6.0f);
+                    // 2. Wild Random Surrounding Track & Rails
+                    float distanceAhead = Random.Range(-5f, 40f);
+                    float sideOffset = Random.Range(-18.0f, 18.0f);
                     targetPos = playerTransform.position + forwardDir * distanceAhead + Vector3.right * sideOffset;
                 }
                 else
                 {
                     // 3. Direct Homing Strike (Urgent Homing Drop!)
-                    float distanceAhead = Random.Range(6f, 12f);
+                    float distanceAhead = Random.Range(6f, 14f);
                     targetPos = playerTransform.position + forwardDir * distanceAhead;
-                    fallSpeed = 48f; // Fast drop
-                    meteorSize = 2.4f;
+                    fallSpeed = 55f; // Super fast drop
+                    meteorSize = 3.0f;
                 }
             }
             else
             {
-                targetPos = new Vector3(Random.Range(-5f, 5f), 5f, Random.Range(-5f, 5f));
+                targetPos = new Vector3(Random.Range(-15f, 15f), 5f, Random.Range(-15f, 15f));
             }
 
             // Raycast down onto slope surface

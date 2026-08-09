@@ -135,8 +135,8 @@ public class IceSlideController : MonoBehaviour
 
     [Header("Respawn")]
     [Tooltip("Drop below this world Y and the block returns to its start point. " +
-             "Must sit clear below the bottom of the slope (~-30 for the default hill).")]
-    [SerializeField] private float killHeight = -60f;
+             "Set to -1000000 to allow procedural endless downhill sliding.")]
+    [SerializeField] private float killHeight = -1000000f;
 
     [Header("Visual")]
     [SerializeField] private Transform visual;

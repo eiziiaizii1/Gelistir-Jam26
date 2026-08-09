@@ -15,7 +15,7 @@ namespace IceEscape
         private void Update()
         {
             // Spring elasticity towards zero offset
-            currentScaleOffset = Vector3.SmoothDamp(currentScaleOffset, Vector3.zero, ref scaleVelocity, 1f / elasticity);
+            currentScaleOffset = Vector3.SmoothDamp(currentScaleOffset, Vector3.zero, ref scaleVelocity, 1f / elasticity, damping);
             transform.localScale = Vector3.one + currentScaleOffset;
         }
 

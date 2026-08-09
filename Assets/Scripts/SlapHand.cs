@@ -49,6 +49,8 @@ namespace IceEscape
                  "the arm would end up on a different world axis for a left slap than a right " +
                  "one. Any component pointing at the block is projected out.")]
         [SerializeField] private Vector3 armWorldDirection = new Vector3(0f, 0f, 1f);
+        [Tooltip("Additional rotation offset (in degrees) applied to the hand model. Set to (0, 180, 0) by default so the hand faces forward away from the camera instead of facing back toward the player.")]
+        [SerializeField] private Vector3 modelRotationOffset = new Vector3(0f, 180f, 0f);
         [Tooltip("Which face of the model looks at the block. The BurnedHand mesh is nearly " +
                  "symmetric front-to-back — palm-facing and back-facing surface area differ by " +
                  "only 5% — so this cannot be detected from the geometry. Flip it if you are " +
@@ -228,7 +230,8 @@ namespace IceEscape
             // makes the palm look at the character.
             Vector3 modelUp = flipPalm ? -pushAxis : pushAxis;
 
-            return Quaternion.LookRotation(arm, modelUp);
+            Quaternion baseRotation = Quaternion.LookRotation(arm, modelUp);
+            return baseRotation * Quaternion.Euler(modelRotationOffset);
         }
 
         /// <summary>

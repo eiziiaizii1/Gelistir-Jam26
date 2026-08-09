@@ -24,6 +24,34 @@ PrefabInstance:
       propertyPath: shakeAmount
       value: 0.4
       objectReference: {fileID: 0}
+    - target: {fileID: 654481245670406861, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
+      propertyPath: flashColor.b
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 654481245670406861, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
+      propertyPath: flashColor.g
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 654481245670406861, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
+      propertyPath: flashColor.r
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 654481245670406861, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
+      propertyPath: particleColor.b
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 654481245670406861, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
+      propertyPath: particleColor.g
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 654481245670406861, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
+      propertyPath: particleColor.r
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4227098971361347579, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 3f4b3fadb13448e43abcef8187e2345a, type: 2}
     - target: {fileID: 5469882849667077308, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
       propertyPath: m_Name
       value: Obstacle_StaticPillar
@@ -70,19 +98,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8707412367124855852, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
       propertyPath: m_LocalScale.x
-      value: 1.6
+      value: 0.8
       objectReference: {fileID: 0}
     - target: {fileID: 8707412367124855852, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
       propertyPath: m_LocalScale.y
-      value: 5
+      value: 3.8879411
       objectReference: {fileID: 0}
     - target: {fileID: 8707412367124855852, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
       propertyPath: m_LocalScale.z
-      value: 1.6
+      value: 0.8
       objectReference: {fileID: 0}
     - target: {fileID: 8707412367124855852, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 2.5
+      value: 4.2685804
       objectReference: {fileID: 0}
     - target: {fileID: 8792819692894955684, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
       propertyPath: m_Size.x
@@ -90,7 +118,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8792819692894955684, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
       propertyPath: m_Size.y
-      value: 5
+      value: 8.537161
       objectReference: {fileID: 0}
     - target: {fileID: 8792819692894955684, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
       propertyPath: m_Size.z
@@ -98,8 +126,12 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8792819692894955684, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
       propertyPath: m_Center.y
-      value: 2.5
+      value: 4.2685804
       objectReference: {fileID: 0}
+    - target: {fileID: 9090409575151781497, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
+      propertyPath: m_Mesh
+      value: 
+      objectReference: {fileID: 5066071635801653460, guid: 6ba5c92620b14404793b7375251db74e, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
