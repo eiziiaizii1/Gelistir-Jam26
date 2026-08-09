@@ -9,6 +9,11 @@ namespace IceEscape
     public class IceGameHUD : MonoBehaviour
     {
         [Header("UI References")]
+        [Tooltip("Font for the whole HUD. Assign it here rather than leaving it to the editor-" +
+                 "only asset lookup below, which is compiled out of builds — an unassigned font " +
+                 "means the shipped game quietly falls back to Unity's legacy font.")]
+        [SerializeField] private Font uiFont;
+
         private Canvas hudCanvas;
         private Text speedText;
         private Text distanceText;
@@ -286,9 +291,13 @@ namespace IceEscape
 
             canvasObj.AddComponent<GraphicRaycaster>();
 
-            Font defaultFont = null;
+            // Serialized reference first: AssetDatabase is compiled out of a build, so relying
+            // on it alone silently drops the custom font in the shipped game and falls through
+            // to LegacyRuntime. The editor lookup stays as a convenience when uiFont is unset.
+            Font defaultFont = uiFont;
 #if UNITY_EDITOR
-            defaultFont = UnityEditor.AssetDatabase.LoadAssetAtPath<Font>("Assets/Font/ManufacturingConsent-Regular.ttf");
+            if (defaultFont == null)
+                defaultFont = UnityEditor.AssetDatabase.LoadAssetAtPath<Font>("Assets/Font/ManufacturingConsent-Regular.ttf");
 #endif
             if (defaultFont == null) defaultFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (defaultFont == null) defaultFont = Font.CreateDynamicFontFromOSFont("Arial", 16);

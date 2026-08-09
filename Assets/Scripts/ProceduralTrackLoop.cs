@@ -130,6 +130,14 @@ namespace IceEscape
             }
         }
 
+        /// <summary>
+        /// Editor-only convenience for scenes where obstaclePrefabs was left empty.
+        ///
+        /// AssetDatabase does not exist in a player build, so this whole list comes back empty
+        /// there and recycled segments spawn nothing — the track just goes bare after the
+        /// opening stretch. Assigning obstaclePrefabs in the inspector is what actually ships;
+        /// the warning below makes the failure loud instead of silent.
+        /// </summary>
         private void LoadDefaultObstaclePrefabs()
         {
             List<GameObject> prefabs = new List<GameObject>();
@@ -153,6 +161,13 @@ namespace IceEscape
 #endif
 
             obstaclePrefabs = prefabs.ToArray();
+
+            if (obstaclePrefabs.Length == 0 && spawnObstaclesOnRecycle)
+            {
+                Debug.LogWarning("[ProceduralTrackLoop] No obstacle prefabs available, so recycled " +
+                                 "track segments will be empty. Assign 'Obstacle Prefabs' in the " +
+                                 "inspector — the editor-only fallback does not exist in a build.", this);
+            }
         }
 
         private void CreateSegmentAhead(int index)

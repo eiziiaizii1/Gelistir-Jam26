@@ -106,8 +106,13 @@ namespace IceEscape
             sizeLife.size = new ParticleSystem.MinMaxCurve(1.0f, curve);
 
             // Velocity Over Lifetime (Upward heat drift)
+            // All three axes must use the same MinMaxCurve mode or Unity logs
+            // "Particle Velocity curves must all be in the same mode" every time this runs.
+            // y and z are TwoConstants, so x has to be set too rather than left at its
+            // default single Constant - it also gives the embers sideways drift.
             var velocity = emberParticles.velocityOverLifetime;
             velocity.enabled = true;
+            velocity.x = new ParticleSystem.MinMaxCurve(-1.0f, 1.0f);
             velocity.y = new ParticleSystem.MinMaxCurve(0.8f, 2.5f);
             velocity.z = new ParticleSystem.MinMaxCurve(-1.0f, 1.0f);
 

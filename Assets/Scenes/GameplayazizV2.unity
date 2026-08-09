@@ -980,7 +980,13 @@ MonoBehaviour:
   railLeftMesh: {fileID: 0}
   railRightMesh: {fileID: 0}
   spawnObstaclesOnRecycle: 1
-  obstaclePrefabs: []
+  obstaclePrefabs:
+  - {fileID: 370567452862406353, guid: 3e3e15e9086bf224098ae2f954a2ecc9, type: 3}
+  - {fileID: 395856645218256622, guid: 59d35de1554db7341a3a8d1797ac21ab, type: 3}
+  - {fileID: 3833723088793783835, guid: 72de788d4b5e34847a50146fe78caceb, type: 3}
+  - {fileID: 7433032408518525270, guid: 8d6c12bd051260e4da8f58c7ff365c95, type: 3}
+  - {fileID: 348251417549602183, guid: c3383077c95372b4f8ba222b53903439, type: 3}
+  - {fileID: 1185865318986197243, guid: b81f2a68fab54d84bbdb9fb265b09c98, type: 3}
   minObstaclesPerSegment: 25
   maxObstaclesPerSegment: 49
   trackWidth: 50
@@ -1397,6 +1403,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6254f2bff0d68794b9f544069cbcbf21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  uiFont: {fileID: 12800000, guid: a5f95e089b6996f4a9899e85e3cffc43, type: 3}
   meltSourceBehaviour: {fileID: 0}
   playerRigidbody: {fileID: 0}
 --- !u!4 &977465802
