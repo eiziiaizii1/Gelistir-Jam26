@@ -10,6 +10,10 @@ namespace IceEscape
         [Header("Audio Sources")]
         private AudioSource slideAudioSource;
         private AudioSource sfxAudioSource;
+        private AudioSource musicAudioSource;
+
+        [Header("Background Music")]
+        [SerializeField] private AudioClip bgmMusicClip;
 
         [Header("Procedural Audio Clips")]
         private AudioClip crystalChimeClip;
@@ -30,6 +34,29 @@ namespace IceEscape
 
             SetupAudioSources();
             GenerateProceduralAudioClips();
+
+            // Load Master Volume & Mute state from PlayerPrefs
+            AudioListener.volume = IsMuted ? 0f : MasterVolume;
+        }
+
+        public static float MasterVolume
+        {
+            get => PlayerPrefs.GetFloat("MasterVolume", 1.0f);
+            set
+            {
+                PlayerPrefs.SetFloat("MasterVolume", Mathf.Clamp01(value));
+                AudioListener.volume = IsMuted ? 0f : Mathf.Clamp01(value);
+            }
+        }
+
+        public static bool IsMuted
+        {
+            get => PlayerPrefs.GetInt("IsMuted", 0) == 1;
+            set
+            {
+                PlayerPrefs.SetInt("IsMuted", value ? 1 : 0);
+                AudioListener.volume = value ? 0f : MasterVolume;
+            }
         }
 
         private void Start()
@@ -42,12 +69,32 @@ namespace IceEscape
             slideAudioSource = gameObject.AddComponent<AudioSource>();
             slideAudioSource.loop = true;
             slideAudioSource.playOnAwake = false;
-            slideAudioSource.volume = 0.25f;
+            slideAudioSource.volume = 0.125f;
 
+            // Halving this halves every one-shot at once: PlayOneShot's volumeScale multiplies
+            // the source volume, so the per-clip 0.7 / 0.9 / 0.6 balance is preserved.
             sfxAudioSource = gameObject.AddComponent<AudioSource>();
             sfxAudioSource.loop = false;
             sfxAudioSource.playOnAwake = false;
-            sfxAudioSource.volume = 0.8f;
+            sfxAudioSource.volume = 0.4f;
+
+            musicAudioSource = gameObject.AddComponent<AudioSource>();
+            musicAudioSource.loop = true;
+            musicAudioSource.playOnAwake = false;
+            musicAudioSource.volume = 0.55f;
+
+            if (bgmMusicClip == null)
+            {
+#if UNITY_EDITOR
+                bgmMusicClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/ultrakill_12 novocals kinga.wav");
+#endif
+            }
+
+            if (bgmMusicClip != null)
+            {
+                musicAudioSource.clip = bgmMusicClip;
+                musicAudioSource.Play();
+            }
         }
 
         private void GenerateProceduralAudioClips()
@@ -74,7 +121,9 @@ namespace IceEscape
             if (slideAudioSource != null && playerRb != null)
             {
                 float speed = playerRb.linearVelocity.magnitude;
-                slideAudioSource.volume = Mathf.Clamp(speed / 15f, 0.05f, 0.4f);
+                // Recomputed every frame, so this — not the initial volume above — is what the
+                // slide loop actually plays at. Both the ramp and the caps are halved.
+                slideAudioSource.volume = Mathf.Clamp(speed / 30f, 0.025f, 0.2f);
                 slideAudioSource.pitch = Mathf.Clamp(0.8f + (speed / 20f), 0.8f, 1.8f);
             }
         }

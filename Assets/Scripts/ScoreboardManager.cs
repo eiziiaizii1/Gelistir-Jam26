@@ -23,6 +23,10 @@ namespace IceEscape
         [Header("GUI Style & Positioning")]
         [SerializeField] private Color mainColor = new Color(1.0f, 0.85f, 0.1f); // Arcade Gold
         [SerializeField] private int fontSize = 36;
+        [Tooltip("Overall scoreboard size multiplier. 1 = authored size, 1.25 = a quarter " +
+                 "larger. Applied as a GUI matrix scale so score, ticker and trick popups all " +
+                 "grow together and stay centred.")]
+        [SerializeField] private float uiScale = 1.25f;
         [SerializeField] private Font customFont;
 
         private float currentScore;
@@ -255,9 +259,18 @@ namespace IceEscape
         {
             InitStyles();
 
+            // Scale the whole IMGUI pass instead of touching each Rect and font size. The
+            // matrix also scales the coordinate space, so every layout calculation below has to
+            // use these virtual dimensions - reading Screen.width directly under a scaled
+            // matrix would push centred elements off to the right.
+            Matrix4x4 previousMatrix = GUI.matrix;
+            GUI.matrix = Matrix4x4.Scale(new Vector3(uiScale, uiScale, 1f));
+            float viewWidth = Screen.width / uiScale;
+            float viewHeight = Screen.height / uiScale;
+
             // 1. TOP CENTER - 2D Rush Score Header
             float headerWidth = 500f;
-            float headerX = (Screen.width - headerWidth) * 0.5f;
+            float headerX = (viewWidth - headerWidth) * 0.5f;
 
             int currentFontSize = (scorePulseTimer > 0f) ? Mathf.RoundToInt(fontSize * 1.25f) : fontSize;
             scoreStyle.fontSize = currentFontSize;
@@ -287,7 +300,7 @@ namespace IceEscape
             // 2. LIVE AIRBORNE TICKER
             if (isAirborne && airTimeCounter > 0.15f)
             {
-                float airBoxY = Screen.height * 0.60f;
+                float airBoxY = viewHeight * 0.60f;
                 int airPts = Mathf.RoundToInt((accumulatedAirScore * airMultiplier) * currentMultiplier);
 
                 string airText = $"VOLCANIC AIR {airTimeCounter:F1}S | +{airPts} PTS";
@@ -295,14 +308,14 @@ namespace IceEscape
                 airStyle.fontSize = Mathf.RoundToInt(28 * pulseScale);
 
                 airStyle.normal.textColor = new Color(0.35f, 0f, 0f, 0.95f);
-                GUI.Label(new Rect((Screen.width - 500f) * 0.5f + 2f, airBoxY + 2f, 500f, 45f), airText, airStyle);
+                GUI.Label(new Rect((viewWidth - 500f) * 0.5f + 2f, airBoxY + 2f, 500f, 45f), airText, airStyle);
 
                 airStyle.normal.textColor = new Color(1.0f, 0.4f, 0.05f);
-                GUI.Label(new Rect((Screen.width - 500f) * 0.5f, airBoxY, 500f, 45f), airText, airStyle);
+                GUI.Label(new Rect((viewWidth - 500f) * 0.5f, airBoxY, 500f, 45f), airText, airStyle);
             }
 
             // 3. 2D CENTER SCREEN - Non-Overlapping Animated Trick Popups
-            float popupCenterY = Screen.height * 0.30f;
+            float popupCenterY = viewHeight * 0.30f;
             for (int i = 0; i < activePopups.Count; i++)
             {
                 TrickPopup p = activePopups[i];
@@ -317,7 +330,7 @@ namespace IceEscape
 
                 // Stack cleanly vertically so multiple popups never overlap!
                 float yPos = popupCenterY - offsetY - ((activePopups.Count - 1 - i) * 55f);
-                Rect pRect = new Rect((Screen.width - 550f) * 0.5f, yPos, 550f, 55f);
+                Rect pRect = new Rect((viewWidth - 550f) * 0.5f, yPos, 550f, 55f);
 
                 // Multi-Layer Shadows for contrast
                 trickStyle.normal.textColor = new Color(0.2f, 0.0f, 0.0f, alpha);
@@ -329,6 +342,9 @@ namespace IceEscape
                 trickStyle.normal.textColor = new Color(p.color.r, p.color.g, p.color.b, alpha);
                 GUI.Label(pRect, p.text, trickStyle);
             }
+
+            // GUI.matrix is global state shared by every OnGUI this frame, so put it back.
+            GUI.matrix = previousMatrix;
         }
 
         private void InitStyles()

@@ -464,6 +464,14 @@ MonoBehaviour:
   submergeSpeed: 2
   topPauseDuration: 1.2
   bottomPauseDuration: 1
+  enableGroundFX: 1
+  warningLeadTime: 0.7
+  particleColor: {r: 1, g: 0.35, b: 0.05, a: 0.9}
+  groundOffset: {x: 0, y: 0, z: 0}
+  warningParticlePrefab: {fileID: 0}
+  emergeBurstPrefab: {fileID: 0}
+  baseLoopParticlePrefab: {fileID: 0}
+  submergeBurstPrefab: {fileID: 0}
   rotationAxis: {x: 0, y: 90, z: 0}
   sineAmplitude: {x: 2, y: 0.5, z: 0}
   sineFrequency: {x: 1.5, y: 2, z: 0}
@@ -5748,6 +5756,14 @@ MonoBehaviour:
   submergeSpeed: 2
   topPauseDuration: 1.2
   bottomPauseDuration: 1
+  enableGroundFX: 1
+  warningLeadTime: 0.7
+  particleColor: {r: 1, g: 0.35, b: 0.05, a: 0.9}
+  groundOffset: {x: 0, y: 0, z: 0}
+  warningParticlePrefab: {fileID: 0}
+  emergeBurstPrefab: {fileID: 0}
+  baseLoopParticlePrefab: {fileID: 0}
+  submergeBurstPrefab: {fileID: 0}
   rotationAxis: {x: 0, y: 90, z: 0}
   sineAmplitude: {x: 2, y: 0.5, z: 0}
   sineFrequency: {x: 1.5, y: 2, z: 0}
@@ -6121,6 +6137,7 @@ MonoBehaviour:
   followThrough: 0.5
   heightOffset: 0.45
   armWorldDirection: {x: 0, y: 0, z: 1}
+  modelRotationOffset: {x: 0, y: 180, z: 0}
   flipPalm: 1
   mirrorPerSide: 1
   approachTime: 0.045
@@ -6969,9 +6986,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   trailTime: 1.2
-  startWidth: 0.85
+  baseStartWidth: 0.95
   endWidth: 0
   minEmitSpeed: 1
+  iceBrightCyan: {r: 0, g: 0.95, b: 1, a: 0.9}
+  iceDeepBlue: {r: 0.1, g: 0.5, b: 1, a: 0.5}
 --- !u!96 &823399303
 TrailRenderer:
   serializedVersion: 3
@@ -11941,6 +11960,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6254f2bff0d68794b9f544069cbcbf21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  uiFont: {fileID: 0}
   meltSourceBehaviour: {fileID: 0}
   playerRigidbody: {fileID: 0}
 --- !u!4 &977465802
@@ -13897,6 +13917,14 @@ MonoBehaviour:
   submergeSpeed: 2.5
   topPauseDuration: 1.2
   bottomPauseDuration: 1
+  enableGroundFX: 1
+  warningLeadTime: 0.7
+  particleColor: {r: 1, g: 0.35, b: 0.05, a: 0.9}
+  groundOffset: {x: 0, y: 0, z: 0}
+  warningParticlePrefab: {fileID: 0}
+  emergeBurstPrefab: {fileID: 0}
+  baseLoopParticlePrefab: {fileID: 0}
+  submergeBurstPrefab: {fileID: 0}
   rotationAxis: {x: 0, y: 90, z: 0}
   sineAmplitude: {x: 2, y: 0.5, z: 0}
   sineFrequency: {x: 1.5, y: 2, z: 0}

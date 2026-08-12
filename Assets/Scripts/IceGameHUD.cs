@@ -14,6 +14,11 @@ namespace IceEscape
                  "means the shipped game quietly falls back to Unity's legacy font.")]
         [SerializeField] private Font uiFont;
 
+        [Tooltip("Overall HUD size multiplier. 1 = authored size, 1.25 = a quarter larger. " +
+                 "Applied through the CanvasScaler's reference resolution, so panels, bars and " +
+                 "text all grow together.")]
+        [SerializeField] private float uiScale = 1.25f;
+
         private Canvas hudCanvas;
         private Text speedText;
         private Text distanceText;
@@ -285,7 +290,10 @@ namespace IceEscape
             // instead of leaving the scaler on Constant Pixel Size.
             CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            // Shrinking the reference resolution enlarges everything on the canvas by the same
+            // factor. Done here rather than by editing each panel size and font size, so the
+            // whole HUD keeps its proportions and stays tunable from one number.
+            scaler.referenceResolution = new Vector2(1920f / uiScale, 1080f / uiScale);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
             scaler.matchWidthOrHeight = 0.5f;
 

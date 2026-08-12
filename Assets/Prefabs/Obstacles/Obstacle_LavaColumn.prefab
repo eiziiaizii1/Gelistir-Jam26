@@ -45,6 +45,18 @@ PrefabInstance:
       value: Obstacle_LavaColumn
       objectReference: {fileID: 0}
     - target: {fileID: 7032712222783176296, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 7032712222783176296, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 15
+      objectReference: {fileID: 0}
+    - target: {fileID: 7032712222783176296, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 7032712222783176296, guid: e6f5ba6df8eb99f4aa5709e22b06dae5, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
       objectReference: {fileID: 0}

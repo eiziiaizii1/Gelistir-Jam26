@@ -71,7 +71,10 @@ namespace IceEscape
             // Find existing Hill if trackRoot is not assigned
             if (hillMesh == null)
             {
-                hillMesh = GameObject.Find("Hill");
+                // "Ground" is the current prefab; "Hill" is the primitive it replaced. Assigning
+                // hillMesh in the inspector is preferred - this lookup only covers scenes where
+                // it was left empty, and a rename would otherwise break the loop silently.
+                hillMesh = GameObject.Find("Ground") ?? GameObject.Find("Hill");
             }
             if (railLeftMesh == null)
             {
@@ -84,7 +87,8 @@ namespace IceEscape
 
             if (hillMesh == null)
             {
-                Debug.LogWarning("[ProceduralTrackLoop] Hill GameObject not found in scene!");
+                Debug.LogWarning("[ProceduralTrackLoop] No ground object found (looked for an " +
+                                 "assigned Hill Mesh, then 'Ground', then 'Hill'). Track looping is off.", this);
                 return;
             }
 
