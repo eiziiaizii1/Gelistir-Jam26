@@ -165,6 +165,8 @@ public class IceSlideController : MonoBehaviour
     private bool grounded;
     private Vector3 groundNormal = Vector3.up;
 
+    private bool controlsEnabled = true;
+
     private Vector3 startPosition;
 
     /// <summary>Downhill heading projected onto the current surface. The camera follows this.</summary>
@@ -184,6 +186,9 @@ public class IceSlideController : MonoBehaviour
 
     /// <summary>Headroom the current dash still has above maxDescentSpeed, in m/s.</summary>
     public float DashOverspeedRemaining => overspeedAllowance;
+
+    /// <summary>False once the run has ended: physics still runs, but input is ignored.</summary>
+    public bool ControlsEnabled => controlsEnabled;
 
     public float Speed => body != null ? body.linearVelocity.magnitude : 0f;
     public bool IsGrounded => grounded;
@@ -317,6 +322,7 @@ public class IceSlideController : MonoBehaviour
         jumpBufferTimer = 0f;
         coyoteTimer = 0f;
         jumpCutQueued = false;
+        controlsEnabled = true;
 
         if (visual != null)
             visual.rotation = UprightRotation();
@@ -332,9 +338,37 @@ public class IceSlideController : MonoBehaviour
 
         // Read before ReadMouse, and separately from it: ReadMouse bails out when the
         // left button is up, so jumping must not live behind that gate.
-        ReadJump();
-        ReadMouse();
+        if (controlsEnabled)
+        {
+            ReadJump();
+            ReadMouse();
+        }
+
         UpdateVisual();
+    }
+
+    /// <summary>
+    /// Turns player input on or off. The body keeps sliding under physics either way - this
+    /// only stops steering, slapping and jumping, so the run can be locked out once the game
+    /// is over while the cube still coasts to a stop.
+    /// </summary>
+    public void SetControlsEnabled(bool enabled)
+    {
+        controlsEnabled = enabled;
+
+        if (!enabled)
+        {
+            // Drop everything queued but not yet applied, so nothing fires on the next
+            // physics step after control is taken away.
+            pendingSlap = 0f;
+            swingActive = false;
+            swingSign = 0f;
+            dashQueued = false;
+            gestureSpent = false;
+            wasHeld = false;
+            jumpBufferTimer = 0f;
+            jumpCutQueued = false;
+        }
     }
 
     private void ReadJump()

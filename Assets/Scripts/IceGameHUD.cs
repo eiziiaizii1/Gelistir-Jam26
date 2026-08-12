@@ -185,6 +185,7 @@ namespace IceEscape
             if (isGameOver || isVictory) return;
 
             isVictory = true;
+            DisablePlayerControls();
             TriggerScreenFlash(new Color(0.1f, 0.9f, 1.0f), 0.5f);
 
             if (victoryPanel != null)
@@ -198,7 +199,24 @@ namespace IceEscape
             if (isGameOver) return;
             isGameOver = true;
 
+            // The restart panel is up from here on, so the run must stop responding to the
+            // mouse - otherwise the player keeps steering a dead cube behind the panel.
+            DisablePlayerControls();
+
             StartCoroutine(DoSmoothGameOverTransition());
+        }
+
+        /// <summary>
+        /// Hands control back to the UI by muting player input. The cube keeps its momentum
+        /// and coasts to a stop under physics rather than freezing in place.
+        /// </summary>
+        private void DisablePlayerControls()
+        {
+            IceSlideController controller = FindFirstObjectByType<IceSlideController>();
+            if (controller != null)
+            {
+                controller.SetControlsEnabled(false);
+            }
         }
 
         private System.Collections.IEnumerator DoSmoothGameOverTransition()
