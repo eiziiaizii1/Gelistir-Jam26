@@ -13,7 +13,11 @@ namespace IceEscape
         private AudioSource musicAudioSource;
 
         [Header("Background Music")]
+        [Tooltip("Gameplay music. Assign this - an unassigned clip means a silent build, since " +
+                 "the editor-only asset lookup does not exist in a player.")]
         [SerializeField] private AudioClip bgmMusicClip;
+        [Tooltip("Fallback path under a Resources folder, used only when the clip above is empty.")]
+        [SerializeField] private string bgmResourcePath = "Music/GameplayTheme";
 
         [Header("Procedural Audio Clips")]
         private AudioClip crystalChimeClip;
@@ -85,15 +89,29 @@ namespace IceEscape
 
             if (bgmMusicClip == null)
             {
-#if UNITY_EDITOR
-                bgmMusicClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/ultrakill_12 novocals kinga.wav");
-#endif
+                // Resources.Load works in a build; the AssetDatabase lookup below does not.
+                bgmMusicClip = Resources.Load<AudioClip>(bgmResourcePath);
             }
+
+#if UNITY_EDITOR
+            if (bgmMusicClip == null)
+            {
+                bgmMusicClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/ultrakill_12 novocals kinga.wav");
+            }
+#endif
 
             if (bgmMusicClip != null)
             {
                 musicAudioSource.clip = bgmMusicClip;
                 musicAudioSource.Play();
+            }
+            else
+            {
+                // Loud on purpose: this used to fail silently in builds only, because the
+                // editor-only lookup above is compiled out of a player.
+                Debug.LogWarning("[IceAudioManager] No background music clip. Assign 'Bgm Music " +
+                                 "Clip' in the inspector, or put the track at " +
+                                 "Assets/Resources/" + bgmResourcePath + ".", this);
             }
         }
 

@@ -11961,6 +11961,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   uiFont: {fileID: 0}
+  uiScale: 1.25
   meltSourceBehaviour: {fileID: 0}
   playerRigidbody: {fileID: 0}
 --- !u!4 &977465802
@@ -13431,6 +13432,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e30f366939386424194856698be2fc8f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  bgmMusicClip: {fileID: 8300000, guid: 2662db6ec9532534faa48960deb85cd6, type: 3}
+  bgmResourcePath: Music/GameplayTheme
 --- !u!4 &1730140419
 Transform:
   m_ObjectHideFlags: 0
